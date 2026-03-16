@@ -1,0 +1,1887 @@
+---
+title: "Supplemental figures"
+author: "LJ"
+date: "2026-03-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Figure S1
+
+## Bacteria
+
+## Panel A - Bacteria
+
+```{r}
+###########################################################################################
+# transform the data
+ps_B_tr <- microbiome::transform(physeq_B, 'hellinger')
+
+# PCoA - with Bray Curtis
+pcoa_B_tr <- ordinate(ps_B_tr, "PCoA", distance = "bray", binary = FALSE)
+
+# Extract PCoA results
+pcoa_result_B_tr <- as.data.frame(pcoa_B_tr$vectors)
+
+# Extract sample data for temporal information
+temporal_data_B_tr <- as.data.frame(sample_data(ps_B_tr))
+
+# Combine
+combined_data_B_tr <- cbind(temporal_data_B_tr, pcoa_result_B_tr)
+
+# Centroids
+centroid_data_B_tr <- combined_data_B_tr %>%
+  group_by(bulk_rhizo, Timepoint) %>%
+  summarize(Centroid_X = mean(Axis.1), Centroid_Y = mean(Axis.2)) %>%
+  ungroup()
+
+# Factor order for time
+combined_data_B_tr$Timepoint <- factor(combined_data_B_tr$Timepoint,
+                                       levels = c("T0","T1","T2","T3"))
+
+arranged_data_B_tr <- centroid_data_B_tr %>%
+  arrange(bulk_rhizo, Timepoint)
+
+sample_data(ps_B_tr)$bulk_rhizo_t_2 <- paste0(sample_data(ps_B_tr)$bulk_rhizo, "_",
+                                              sample_data(ps_B_tr)$Timepoint)
+
+# Panel A
+
+S1_B_A <- ggplot(combined_data_B_tr, aes(Axis.1, Axis.2)) +
+  geom_point(aes(shape = bulk_rhizo, fill = bulk_rhizo_t_2), size = 6, color = "black") +
+  geom_convexhull(aes(group = bulk_rhizo, fill = bulk_rhizo, color = bulk_rhizo), alpha = 0.1) +
+  scale_shape_manual(values = c(21, 24)) +
+  scale_fill_manual(values = c(compartment_colors, time_colors)) +
+  scale_color_manual(values = c(compartment_colors)) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_B_tr$values$Eigenvalues[1] / sum(pcoa_B_tr$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_B_tr$values$Eigenvalues[2] / sum(pcoa_B_tr$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_soil()
+
+ggsave(paste0(workdir, "plots/pcoa/S1_B_PanelA_", Sys.Date(), ".pdf"),
+       device = "pdf", plot = S1_B_A, width = 7, height = 6, dpi = 600)
+
+```
+
+
+## Panel B
+
+```{r}
+
+# PCoA - with Bray Curtis
+
+### T1
+ps_B_tr_T1 <- ps_filter(ps_B_tr, Timepoint == "T1")
+
+pcoa_B_tr_T1 <- ordinate(ps_B_tr_T1, "PCoA", distance = "bray", binary = F)
+
+# Extract PCoA results
+pcoa_result_B_tr_T1 <- as.data.frame(pcoa_B_tr_T1$vectors)
+
+# Extract sample data for temporal information
+temporal_data_B_tr_T1 <- as.data.frame(sample_data(ps_B_tr_T1))
+
+# Combine data for plotting
+combined_data_B_tr_T1 <- cbind(temporal_data_B_tr_T1, pcoa_result_B_tr_T1)
+
+# Calculate centroids for each group and timepoint
+centroid_data_B_tr_T1 <- combined_data_B_tr_T1 %>%
+  group_by(bulk_rhizo, Timepoint) %>%
+  summarize(Centroid_X = mean(Axis.1), Centroid_Y = mean(Axis.2)) %>%
+  ungroup()
+
+# Convert Timepoint to factor with the desired order
+combined_data_B_tr_T1$Timepoint <- factor(combined_data_B_tr_T1$Timepoint, levels = c("T0", "T1", "T2", "T3"))
+
+# Arrange data for plotting
+arranged_data_B_tr_T1 <- centroid_data_B_tr_T1 %>%
+  arrange(bulk_rhizo, Timepoint)
+
+sample_data(ps_B_tr_T1)$bulk_rhizo_t_2 <-  paste0(sample_data(ps_B_tr_T1)$bulk_rhizo, 
+                                                   "_", sample_data(ps_B_tr_T1)$Timepoint)
+
+# Panel A
+
+S1_B_B_T1_3 <- ggplot(combined_data_B_tr_T1, aes(Axis.1, Axis.2)) +
+  geom_point(aes(shape = bulk_rhizo, fill = bulk_rhizo), size = 6, color = "black") +
+  geom_convexhull(aes(group = bulk_rhizo, fill = bulk_rhizo, color = bulk_rhizo), alpha = 0.1) +
+  scale_shape_manual(values = c(21, 24)) +
+  scale_fill_manual(values = c(compartment_colors, time_colors)) +
+  scale_color_manual(values = c(compartment_colors)) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_B_tr_T1$values$Eigenvalues[1] / sum(pcoa_B_tr_T1$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_B_tr_T1$values$Eigenvalues[2] / sum(pcoa_B_tr_T1$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_soil()
+
+S1_B_B_T1_3
+
+ggsave(paste0(workdir, "plots/pcoa/S1_B_B_T1_3_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = S1_B_B_T1_3,
+       width = 7, height = 6, dpi = 600)
+
+ggsave(paste0(workdir, "plots/pcoa/S1_B_B_T1_3_small_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = S1_B_B_T1_3,
+       width = 4, height = 3, dpi = 600)
+
+### T2
+### T2
+ps_B_tr_T2 <- ps_filter(ps_B_tr, Timepoint == "T2")
+
+pcoa_B_tr_T2 <- ordinate(ps_B_tr_T2, "PCoA", distance = "bray", binary = F)
+
+# Extract PCoA results
+pcoa_result_B_tr_T2 <- as.data.frame(pcoa_B_tr_T2$vectors)
+
+# Extract sample data for temporal information
+temporal_data_B_tr_T2 <- as.data.frame(sample_data(ps_B_tr_T2))
+
+# Combine data for plotting
+combined_data_B_tr_T2 <- cbind(temporal_data_B_tr_T2, pcoa_result_B_tr_T2)
+
+# Calculate centroids for each group and timepoint
+centroid_data_B_tr_T2 <- combined_data_B_tr_T2 %>%
+  group_by(bulk_rhizo, Timepoint) %>%
+  summarize(Centroid_X = mean(Axis.1), Centroid_Y = mean(Axis.2)) %>%
+  ungroup()
+
+# Convert Timepoint to factor with the desired order
+#combined_data_B_tr_T2$Timepoint <- factor(combined_data_B_tr_T2$Timepoint, levels = c("T0", "T2", "T2", "T3"))
+
+# Arrange data for plotting
+arranged_data_B_tr_T2 <- centroid_data_B_tr_T2 %>%
+  arrange(bulk_rhizo, Timepoint)
+
+sample_data(ps_B_tr_T2)$bulk_rhizo_t_2 <-  paste0(sample_data(ps_B_tr_T2)$bulk_rhizo, 
+                                                  "_", sample_data(ps_B_tr_T2)$Timepoint)
+
+# Panel A
+S1_B_B_T2_3 <- ggplot(combined_data_B_tr_T2, aes(Axis.1, Axis.2)) +
+  geom_point(aes(shape = bulk_rhizo, fill = bulk_rhizo), size = 6, color = "black") +
+  geom_convexhull(aes(group = bulk_rhizo, fill = bulk_rhizo, color = bulk_rhizo), alpha = 0.1) +
+  scale_shape_manual(values = c(21, 24)) +
+  scale_fill_manual(values = c(compartment_colors, time_colors)) +
+  scale_color_manual(values = c(compartment_colors)) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_B_tr_T2$values$Eigenvalues[1] / sum(pcoa_B_tr_T2$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_B_tr_T2$values$Eigenvalues[2] / sum(pcoa_B_tr_T2$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_soil()
+
+S1_B_B_T2_3
+
+ggsave(paste0(workdir, "plots/pcoa/S1_B_B_T2_3_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = S1_B_B_T2_3,
+       width = 7, height = 6, dpi = 600)
+
+ggsave(paste0(workdir, "plots/pcoa/S1_B_B_T2_3_small_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = S1_B_B_T2_3,
+       width = 4, height = 3, dpi = 600)
+
+
+### T3
+ps_B_tr_T3 <- ps_filter(ps_B_tr, Timepoint == "T3")
+
+pcoa_B_tr_T3 <- ordinate(ps_B_tr_T3, "PCoA", distance = "bray", binary = F)
+
+# Extract PCoA results
+pcoa_result_B_tr_T3 <- as.data.frame(pcoa_B_tr_T3$vectors)
+
+# Extract sample data for temporal information
+temporal_data_B_tr_T3 <- as.data.frame(sample_data(ps_B_tr_T3))
+
+# Combine data for plotting
+combined_data_B_tr_T3 <- cbind(temporal_data_B_tr_T3, pcoa_result_B_tr_T3)
+
+# Calculate centroids for each group and timepoint
+centroid_data_B_tr_T3 <- combined_data_B_tr_T3 %>%
+  group_by(bulk_rhizo, Timepoint) %>%
+  summarize(Centroid_X = mean(Axis.1), Centroid_Y = mean(Axis.2)) %>%
+  ungroup()
+
+# Convert Timepoint to factor with the desired order
+#combined_data_B_tr_T3$Timepoint <- factor(combined_data_B_tr_T3$Timepoint, levels = c("T0", "T3", "T3", "T3"))
+
+# Arrange data for plotting
+arranged_data_B_tr_T3 <- centroid_data_B_tr_T3 %>%
+  arrange(bulk_rhizo, Timepoint)
+
+sample_data(ps_B_tr_T3)$bulk_rhizo_t_2 <-  paste0(sample_data(ps_B_tr_T3)$bulk_rhizo, 
+                                                  "_", sample_data(ps_B_tr_T3)$Timepoint)
+
+# Panel A
+S1_B_B_T3_3 <-  ggplot(combined_data_B_tr_T3, aes(Axis.1, Axis.2)) +
+  geom_point(aes(shape = bulk_rhizo, fill = bulk_rhizo), size = 6, color = "black") +
+  geom_convexhull(aes(group = bulk_rhizo, fill = bulk_rhizo, color = bulk_rhizo), alpha = 0.1) +
+  scale_shape_manual(values = c(21, 24)) +
+  scale_fill_manual(values = c(compartment_colors, time_colors)) +
+  scale_color_manual(values = c(compartment_colors)) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_B_tr_T3$values$Eigenvalues[1] / sum(pcoa_B_tr_T3$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_B_tr_T3$values$Eigenvalues[2] / sum(pcoa_B_tr_T3$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_soil()
+
+
+S1_B_B_T3_3
+
+ggsave(paste0(workdir, "plots/pcoa/S1_B_B_T3_3_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = S1_B_B_T3_3,
+       width = 7, height = 6, dpi = 600)
+
+ggsave(paste0(workdir, "plots/pcoa/S1_B_B_T3_3_small_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = S1_B_B_T3_3,
+       width = 4, height = 3, dpi = 600)
+
+```
+
+
+## Panel C
+
+
+```{r}
+
+alpha_B_tr <- alpha(ps_B_tr, index = "Observed")
+
+alpha_B_tr$SampleID <- rownames(alpha_B_tr)
+alpha_B_tr_m <- merge(alpha_B_tr, meta(ps_B_tr), by = "SampleID")
+
+alpha_B_tr_m <- alpha_B_tr_m %>%
+  mutate(
+    Numeric_Timepoint = case_when(
+      Timepoint == "T0" ~ 0,
+      Timepoint == "T1" ~ 9,
+      Timepoint == "T2" ~ 14,
+      Timepoint == "T3" ~ 19,
+      TRUE ~ as.numeric(Timepoint)   # ensures numeric output
+    )
+  )
+
+
+alpha_B_tr_m <- alpha_B_tr_m %>%
+  mutate(
+    Time_month = case_when(
+      Timepoint == "T0" ~ "March",
+      Timepoint == "T1" ~ "June",
+      Timepoint == "T2" ~ "July",
+      Timepoint == "T3" ~ "August",
+      TRUE ~ Timepoint
+    )
+  )
+
+alpha_B_tr_m$Time_month <- factor(alpha_B_tr_m$Time_month,
+                                  levels = c("March","June","July","August"))
+
+
+S1_B_C <- ggplot(alpha_B_tr_m, aes(x = as.factor(Time_month), y = observed, fill = bulk_rhizo, color = bulk_rhizo)) +
+  geom_boxplot(color = "black", alpha = 0.7, position = position_dodge(0.75)) +
+  geom_point(position = position_jitterdodge(jitter.width = 0.5, dodge.width = 0.75), alpha = 1, color = "black") +
+  labs(x = "", y = "Number of ASVs") +
+  scale_fill_manual(name = "soil", values = compartment_colors) +
+  scale_color_manual(name = "soil", values = compartment_colors) +
+  theme_soil()
+
+
+library(dplyr)
+library(rstatix)
+
+B_richness_stat_test <- alpha_B_tr_m %>%
+  group_by(Time_month) %>%
+  filter(n_distinct(bulk_rhizo) > 1) %>%
+  wilcox_test(observed ~ bulk_rhizo) %>%
+  add_significance("p") %>%
+  add_xy_position(x = "Time_month", dodge = 0.8)
+
+S1_B_C_stat <- S1_B_C +
+  stat_pvalue_manual(
+    B_richness_stat_test,             # your stat_test dataframe
+    label = "p.signif",    # shows *, **, etc.
+    tip.length = 0.02,     # length of the whisker
+    hide.ns = FALSE,        # hide non-significant comparisons
+    position = position_dodge(width = 0.8),  # align with dodged boxes
+    label.size = 8
+  )
+
+S1_B_C_stat
+
+ggsave(paste0(workdir, "plots/alpha_moisture_plot/S1_B_PanelC_stats_", Sys.Date(), ".pdf"),
+       device = "pdf", plot = S1_B_C_stat,
+       width = 7, height = 6, dpi = 600)
+
+```
+
+
+## Fungi
+
+## Panel A - Bacteria
+
+```{r}
+###########################################################################################
+# transform the data
+ps_F_tr <- microbiome::transform(physeq_F, 'hellinger')
+
+# PCoA - with Bray Curtis
+pcoa_F_tr <- ordinate(ps_F_tr, "PCoA", distance = "bray", binary = FALSE)
+
+# Extract PCoA results
+pcoa_result_F_tr <- as.data.frame(pcoa_F_tr$vectors)
+
+# Extract sample data for temporal information
+temporal_data_F_tr <- as.data.frame(sample_data(ps_F_tr))
+
+# Combine
+combined_data_F_tr <- cbind(temporal_data_F_tr, pcoa_result_F_tr)
+
+# Centroids
+centroid_data_F_tr <- combined_data_F_tr %>%
+  group_by(bulk_rhizo, Timepoint) %>%
+  summarize(Centroid_X = mean(Axis.1), Centroid_Y = mean(Axis.2)) %>%
+  ungroup()
+
+# Factor order for time
+combined_data_F_tr$Timepoint <- factor(combined_data_F_tr$Timepoint,
+                                       levels = c("T0","T1","T2","T3"))
+
+arranged_data_F_tr <- centroid_data_F_tr %>%
+  arrange(bulk_rhizo, Timepoint)
+
+sample_data(ps_F_tr)$bulk_rhizo_t_2 <- paste0(sample_data(ps_F_tr)$bulk_rhizo, "_",
+                                              sample_data(ps_F_tr)$Timepoint)
+
+# Panel A
+S1_F_A <- 
+ ggplot(combined_data_F_tr, aes(Axis.1, Axis.2)) +
+  geom_point(aes(shape = bulk_rhizo, fill = bulk_rhizo_t_2), size = 6, color = "black") +
+  geom_convexhull(aes(group = bulk_rhizo, fill = bulk_rhizo, color = bulk_rhizo), alpha = 0.1) +
+  scale_shape_manual(values = c(21, 24)) +
+  scale_fill_manual(values = c(compartment_colors, time_colors)) +
+  scale_color_manual(values = c(compartment_colors)) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_F_tr$values$Eigenvalues[1] / sum(pcoa_F_tr$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_F_tr$values$Eigenvalues[2] / sum(pcoa_F_tr$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_soil()  
+
+
+S1_F_A
+
+ggsave(paste0(workdir, "plots/pcoa/S1_F_PanelA_", Sys.Date(), ".pdf"),
+       device = "pdf", plot = S1_F_A, width = 7, height = 6, dpi = 600)
+
+```
+
+
+## Panel B
+
+```{r}
+
+# PCoA - with Bray Curtis
+
+### T1
+ps_F_tr_T1 <- ps_filter(ps_F_tr, Timepoint == "T1")
+
+pcoa_F_tr_T1 <- ordinate(ps_F_tr_T1, "PCoA", distance = "bray", binary = F)
+
+# Extract PCoA results
+pcoa_result_F_tr_T1 <- as.data.frame(pcoa_F_tr_T1$vectors)
+
+# Extract sample data for temporal information
+temporal_data_F_tr_T1 <- as.data.frame(sample_data(ps_F_tr_T1))
+
+# Combine data for plotting
+combined_data_F_tr_T1 <- cbind(temporal_data_F_tr_T1, pcoa_result_F_tr_T1)
+
+# Calculate centroids for each group and timepoint
+centroid_data_F_tr_T1 <- combined_data_F_tr_T1 %>%
+  group_by(bulk_rhizo, Timepoint) %>%
+  summarize(Centroid_X = mean(Axis.1), Centroid_Y = mean(Axis.2)) %>%
+  ungroup()
+
+# Convert Timepoint to factor with the desired order
+combined_data_F_tr_T1$Timepoint <- factor(combined_data_F_tr_T1$Timepoint, levels = c("T0", "T1", "T2", "T3"))
+
+# Arrange data for plotting
+arranged_data_F_tr_T1 <- centroid_data_F_tr_T1 %>%
+  arrange(bulk_rhizo, Timepoint)
+
+sample_data(ps_F_tr_T1)$bulk_rhizo_t_2 <-  paste0(sample_data(ps_F_tr_T1)$bulk_rhizo, 
+                                                  "_", sample_data(ps_F_tr_T1)$Timepoint)
+
+# Panel A
+S1_F_B_T1_3 <- ggplot(combined_data_F_tr_T1, aes(Axis.1, Axis.2)) +
+  geom_point(aes(shape = bulk_rhizo, fill = bulk_rhizo), size = 6, color = "black") +
+  geom_convexhull(aes(group = bulk_rhizo, fill = bulk_rhizo, color = bulk_rhizo), alpha = 0.1) +
+  scale_shape_manual(values = c(21, 24)) +
+  scale_fill_manual(values = c(compartment_colors, time_colors)) +
+  scale_color_manual(values = c(compartment_colors)) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_F_tr_T1$values$Eigenvalues[1] / sum(pcoa_F_tr_T1$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_F_tr_T1$values$Eigenvalues[2] / sum(pcoa_F_tr_T1$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_soil()
+
+S1_F_B_T1_3
+
+ggsave(paste0(workdir, "plots/pcoa/S1_F_B_T1_3_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = S1_F_B_T1_3,
+       width = 7, height = 6, dpi = 600)
+
+ggsave(paste0(workdir, "plots/pcoa/S1_F_B_T1_3_small_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = S1_F_B_T1_3,
+       width = 4, height = 3, dpi = 600)
+
+### T2
+### T2
+ps_F_tr_T2 <- ps_filter(ps_F_tr, Timepoint == "T2")
+
+pcoa_F_tr_T2 <- ordinate(ps_F_tr_T2, "PCoA", distance = "bray", binary = F)
+
+# Extract PCoA results
+pcoa_result_F_tr_T2 <- as.data.frame(pcoa_F_tr_T2$vectors)
+
+# Extract sample data for temporal information
+temporal_data_F_tr_T2 <- as.data.frame(sample_data(ps_F_tr_T2))
+
+# Combine data for plotting
+combined_data_F_tr_T2 <- cbind(temporal_data_F_tr_T2, pcoa_result_F_tr_T2)
+
+# Calculate centroids for each group and timepoint
+centroid_data_F_tr_T2 <- combined_data_F_tr_T2 %>%
+  group_by(bulk_rhizo, Timepoint) %>%
+  summarize(Centroid_X = mean(Axis.1), Centroid_Y = mean(Axis.2)) %>%
+  ungroup()
+
+# Convert Timepoint to factor with the desired order
+#combined_data_F_tr_T2$Timepoint <- factor(combined_data_F_tr_T2$Timepoint, levels = c("T0", "T2", "T2", "T3"))
+
+# Arrange data for plotting
+arranged_data_F_tr_T2 <- centroid_data_F_tr_T2 %>%
+  arrange(bulk_rhizo, Timepoint)
+
+sample_data(ps_F_tr_T2)$bulk_rhizo_t_2 <-  paste0(sample_data(ps_F_tr_T2)$bulk_rhizo, 
+                                                  "_", sample_data(ps_F_tr_T2)$Timepoint)
+
+# Panel A
+S1_F_B_T2_3 <- ggplot(combined_data_F_tr_T2, aes(Axis.1, Axis.2)) +
+  geom_point(aes(shape = bulk_rhizo, fill = bulk_rhizo), size = 6, color = "black") +
+  geom_convexhull(aes(group = bulk_rhizo, fill = bulk_rhizo, color = bulk_rhizo), alpha = 0.1) +
+  scale_shape_manual(values = c(21, 24)) +
+  scale_fill_manual(values = c(compartment_colors, time_colors)) +
+  scale_color_manual(values = c(compartment_colors)) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_F_tr_T2$values$Eigenvalues[1] / sum(pcoa_F_tr_T2$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_F_tr_T2$values$Eigenvalues[2] / sum(pcoa_F_tr_T2$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_soil()
+
+S1_F_B_T2_3
+
+ggsave(paste0(workdir, "plots/pcoa/S1_F_B_T2_3_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = S1_F_B_T2_3,
+       width = 7, height = 6, dpi = 600)
+
+ggsave(paste0(workdir, "plots/pcoa/S1_F_B_T2_3_small_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = S1_F_B_T2_3,
+       width = 4, height = 3, dpi = 600)
+
+
+### T3
+ps_F_tr_T3 <- ps_filter(ps_F_tr, Timepoint == "T3")
+
+pcoa_F_tr_T3 <- ordinate(ps_F_tr_T3, "PCoA", distance = "bray", binary = F)
+
+# Extract PCoA results
+pcoa_result_F_tr_T3 <- as.data.frame(pcoa_F_tr_T3$vectors)
+
+# Extract sample data for temporal information
+temporal_data_F_tr_T3 <- as.data.frame(sample_data(ps_F_tr_T3))
+
+# Combine data for plotting
+combined_data_F_tr_T3 <- cbind(temporal_data_F_tr_T3, pcoa_result_F_tr_T3)
+
+# Calculate centroids for each group and timepoint
+centroid_data_F_tr_T3 <- combined_data_F_tr_T3 %>%
+  group_by(bulk_rhizo, Timepoint) %>%
+  summarize(Centroid_X = mean(Axis.1), Centroid_Y = mean(Axis.2)) %>%
+  ungroup()
+
+# Convert Timepoint to factor with the desired order
+#combined_data_F_tr_T3$Timepoint <- factor(combined_data_F_tr_T3$Timepoint, levels = c("T0", "T3", "T3", "T3"))
+
+# Arrange data for plotting
+arranged_data_F_tr_T3 <- centroid_data_F_tr_T3 %>%
+  arrange(bulk_rhizo, Timepoint)
+
+sample_data(ps_F_tr_T3)$bulk_rhizo_t_2 <-  paste0(sample_data(ps_F_tr_T3)$bulk_rhizo, 
+                                                  "_", sample_data(ps_F_tr_T3)$Timepoint)
+
+# Panel A
+S1_F_B_T3_3 <- ggplot(combined_data_F_tr_T3, aes(Axis.1, Axis.2)) +
+  geom_point(aes(shape = bulk_rhizo, fill = bulk_rhizo), size = 6, color = "black") +
+  geom_convexhull(aes(group = bulk_rhizo, fill = bulk_rhizo, color = bulk_rhizo), alpha = 0.1) +
+  scale_shape_manual(values = c(21, 24)) +
+  scale_fill_manual(values = c(compartment_colors, time_colors)) +
+  scale_color_manual(values = c(compartment_colors)) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_F_tr_T3$values$Eigenvalues[1] / sum(pcoa_F_tr_T3$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_F_tr_T3$values$Eigenvalues[2] / sum(pcoa_F_tr_T3$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_soil()
+
+S1_F_B_T3_3
+
+ggsave(paste0(workdir, "plots/pcoa/S1_F_B_T3_3_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = S1_F_B_T3_3,
+       width = 7, height = 6, dpi = 600)
+
+ggsave(paste0(workdir, "plots/pcoa/S1_F_B_T3_3_small_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = S1_F_B_T3_3,
+       width = 4, height = 3, dpi = 600)
+
+
+```
+
+
+## Panel C
+
+
+```{r}
+
+alpha_F_tr <- alpha(ps_F_tr, index = "Observed")
+
+alpha_F_tr$SampleID <- rownames(alpha_F_tr)
+alpha_F_tr_m <- merge(alpha_F_tr, meta(ps_F_tr), by = "SampleID")
+
+alpha_F_tr_m <- alpha_F_tr_m %>%
+  mutate(
+    Numeric_Timepoint = case_when(
+      Timepoint == "T0" ~ 0,
+      Timepoint == "T1" ~ 9,
+      Timepoint == "T2" ~ 14,
+      Timepoint == "T3" ~ 19,
+      TRUE ~ as.numeric(Timepoint)   # ensures numeric output
+    )
+  )
+
+
+alpha_F_tr_m <- alpha_F_tr_m %>%
+  mutate(
+    Time_month = case_when(
+      Timepoint == "T0" ~ "March",
+      Timepoint == "T1" ~ "June",
+      Timepoint == "T2" ~ "July",
+      Timepoint == "T3" ~ "August",
+      TRUE ~ Timepoint
+    )
+  )
+
+alpha_F_tr_m$Time_month <- factor(alpha_F_tr_m$Time_month,
+                                  levels = c("March","June","July","August"))
+
+
+S1_F_C <- ggplot(alpha_F_tr_m, aes(x = as.factor(Time_month), y = observed, fill = bulk_rhizo, color = bulk_rhizo)) +
+  geom_boxplot(color = "black", alpha = 0.7, position = position_dodge(0.75)) +
+  geom_point(position = position_jitterdodge(jitter.width = 0.5, dodge.width = 0.75), alpha = 1, color = "black") +
+  labs(x = "", y = "Number of ASVs") +
+  scale_fill_manual(name = "soil", values = compartment_colors) +
+  scale_color_manual(name = "soil", values = compartment_colors) +
+  theme_soil()
+
+
+library(dplyr)
+library(rstatix)
+
+F_richness_stat_test <- alpha_F_tr_m %>%
+  group_by(Time_month) %>%
+  filter(n_distinct(bulk_rhizo) > 1) %>%
+  wilcox_test(observed ~ bulk_rhizo) %>%
+  add_significance("p") %>%
+  add_xy_position(x = "Time_month", dodge = 0.8)
+
+S1_F_C_stat <- S1_F_C +
+  stat_pvalue_manual(
+    F_richness_stat_test,             # your stat_test dataframe
+    label = "p.signif",    # shows *, **, etc.
+    tip.length = 0.02,     # length of the whisker
+    hide.ns = FALSE,        # hide non-significant comparisons
+    position = position_dodge(width = 0.8),  # align with dodged boxes
+    label.size = 8
+  )
+
+S1_F_C_stat
+
+
+ggsave(paste0(workdir, "plots/alpha_moisture_plot/S1_F_PanelC_stats_", Sys.Date(), ".pdf"),
+       device = "pdf", plot = S1_F_C_stat,
+       width = 7, height = 6, dpi = 600)
+
+```
+
+
+## Combined Figure S1
+
+```{r}
+
+S1_panel_CD <- (S1_B_B_T1_3 + ggtitle("Bacteria - Timepoint 1 - June") | 
+                S1_F_B_T1_3 + ggtitle("Fungi - Timepoint 1 - June")) /
+               (S1_B_B_T2_3 + ggtitle("Bacteria - Timepoint 2 - July") | 
+                S1_F_B_T2_3 + ggtitle("Fungi - Timepoint 2 - July")) /
+               (S1_B_B_T3_3 + ggtitle("Bacteria - Timepoint 3 - August") | 
+                S1_F_B_T3_3 + ggtitle("Fungi - Timepoint 3 - August")) +
+  plot_layout(guides = "collect") & 
+  theme(plot.margin = margin(1,1,1,1))
+
+
+S1_panel_CD
+
+# Combine with patchwork
+left_column <- (S1_B_A + ggtitle("Bacterial community composition")) / (S1_F_A + ggtitle("Fungal community composition"))
+right_column <- S1_B_C  / S1_F_C
+
+Fig_S1_combined <- left_column | S1_panel_CD | right_column +
+  plot_annotation(tag_levels = 'A')
+
+Fig_S1_combined
+
+
+ggsave(paste0(workdir, "plots/Manuscript_figures/Fig_S1_combined_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig_S1_combined, 
+       width = 20, height = 14, dpi = 600)
+
+
+```
+
+
+# Figure S2
+
+
+```{r}
+
+packageVersion("eulerr")
+
+today <- format(Sys.Date(), "%Y-%m-%d")
+
+# Dataset prefixes
+prefixes_euler <- c("DV", "B", "F")
+
+# Colors
+colors_euler <- c("bulk" = "#BA7F3A", "rhizo" = "#3C8E3A")
+
+# Loop over each prefix and generate plot
+for (prefix in prefixes_euler) {
+  # Construct object names for vectors
+  bulk_var <- get(paste0("venn_", prefix, "_tr_bulk"))
+  rhizo_var <- get(paste0("venn_", prefix, "_tr_rhizo"))
+  
+  # Compute intersections
+  only_bulk <- length(setdiff(bulk_var, rhizo_var))
+  only_rhizo <- length(setdiff(rhizo_var, bulk_var))
+  shared <- length(intersect(bulk_var, rhizo_var))
+  
+  # Create Euler diagram data
+  venn_data <- euler(c(
+    "Bulk" = only_bulk,
+    "Rhizo" = only_rhizo,
+    "Bulk&Rhizo" = shared
+  ))
+  
+  # Plot and save to file
+  p <- plot(
+    venn_data,
+    fills = list(fill = c(colors_euler["bulk"], colors_euler["rhizo"]), alpha = 0.7),
+    edges = list(lwd = 2),
+    labels = list(font = 2),
+    quantities = TRUE,
+    main = NULL  # No title
+  )
+  
+  # Save plot
+  ggsave(
+    filename = paste0(paste0(workdir, "plots/euler/"), "euler_", prefix, "_", Sys.Date(), ".pdf"),
+    plot = p,
+    width = 5, height = 5
+  )
+}
+
+```
+
+
+# Figure S3
+
+Bulk soil plot location and AMF
+
+## Panel A
+
+### DV viruses
+Bulk soil plot location
+
+```{r}
+
+S3_DV_A <- ggplot(combined_data_DV_tr_bulk, aes(x = Axis.1, y = Axis.2, color = Plot, shape = Plot)) +
+  geom_point(aes(fill = Plot), size = 6, color = "black") +
+  geom_convexhull(aes(color = Plot,fill = Plot, group = Plot), alpha = 0.1) +
+  scale_color_manual(values = plot_colors) +
+  scale_fill_manual(values = plot_colors) +
+  scale_shape_manual(
+    name = "Timepoint",
+    values = c(22,23,24)
+  ) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_DV_tr_bulk$values$Eigenvalues[1] / sum(pcoa_DV_tr_bulk$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_DV_tr_bulk$values$Eigenvalues[2] / sum(pcoa_DV_tr_bulk$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_soil() + labs(title = "Bulk soil DNA viral community")
+
+S3_DV_A
+
+ggsave(paste0(workdir, "plots/pcoa/pcoa_DV_bulk_plots_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = S3_DV_A,
+       width = 7, height = 6, dpi = 600)
+
+
+```
+
+
+
+### Bacteria
+Bulk soil plot location 
+
+```{r}
+
+S3_B_A <- ggplot(combined_data_B_tr_bulk, aes(x = Axis.1, y = Axis.2, color = Plot, shape = Plot)) +
+  geom_point(aes(fill = Plot), size = 6, color = "black") +
+  geom_convexhull(aes(color = Plot,fill = Plot, group = Plot), alpha = 0.1) +
+  scale_color_manual(values = plot_colors) +
+  scale_fill_manual(values = plot_colors) +
+  scale_shape_manual(
+    name = "Timepoint",
+    values = c(22,23,24)
+  ) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_B_tr_bulk$values$Eigenvalues[1] / sum(pcoa_B_tr_bulk$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_B_tr_bulk$values$Eigenvalues[2] / sum(pcoa_B_tr_bulk$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_soil() + labs(title = "Bulk soil bacterial community")
+
+S3_B_A
+
+ggsave(paste0(workdir, "plots/pcoa/pcoa_B_bulk_plots_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = S3_B_A,
+       width = 7, height = 6, dpi = 600)
+
+```
+
+### Fungi
+
+```{r}
+
+S3_F_A <- ggplot(combined_data_F_tr_bulk, aes(x = Axis.1, y = Axis.2, color = Plot, shape = Plot)) +
+  geom_point(aes(fill = Plot), size = 6, color = "black") +
+  geom_convexhull(aes(color = Plot,fill = Plot, group = Plot), alpha = 0.1) +
+  scale_color_manual(values = plot_colors) +
+  scale_fill_manual(values = plot_colors) +
+  scale_shape_manual(
+    name = "Timepoint",
+    values = c(22,23,24)
+  ) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_F_tr_bulk$values$Eigenvalues[1] / sum(pcoa_F_tr_bulk$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_F_tr_bulk$values$Eigenvalues[2] / sum(pcoa_F_tr_bulk$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_soil() + labs(title = "Bulk soil fungal community")
+
+S3_F_A
+
+ggsave(paste0(workdir, "plots/pcoa/pcoa_F_bulk_plots_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = S3_F_A,
+       width = 7, height = 6, dpi = 600)
+```
+
+## Panel B
+
+AMF treatment
+
+### DV
+
+```{r}
+
+S3_DV_B <- ggplot(combined_data_DV_tr_bulk, aes(x = Axis.1, y = Axis.2, color = Treat, shape = Treat)) +
+  geom_point(aes(fill = Treat), size = 6, color = "black") +
+  geom_convexhull(aes(color = Treat,fill = Treat, group = Treat), alpha = 0.1) +
+  scale_color_manual(values = amf_colors) +
+  scale_fill_manual(values = amf_colors) +
+  scale_shape_manual(
+    name = "Timepoint",
+    values = c(22,23,24)
+  ) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_DV_tr_bulk$values$Eigenvalues[1] / sum(pcoa_DV_tr_bulk$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_DV_tr_bulk$values$Eigenvalues[2] / sum(pcoa_DV_tr_bulk$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_soil() + labs(title = "Bulk soil viral community")
+
+S3_DV_B
+
+ggsave(paste0(workdir, "plots/pcoa/pcoa_DV_bulk_AMFtreatment_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = S3_DV_B,
+       width = 7, height = 6, dpi = 600)
+
+```
+
+
+### Bacteria
+
+```{r}
+
+S3_B_B <- ggplot(combined_data_B_tr_bulk, aes(x = Axis.1, y = Axis.2, color = Treat, shape = Treat)) +
+  geom_point(aes(fill = Treat), size = 6, color = "black") +
+  geom_convexhull(aes(color = Treat,fill = Treat, group = Treat), alpha = 0.1) +
+  scale_color_manual(values = amf_colors) +
+  scale_fill_manual(values = amf_colors) +
+  scale_shape_manual(
+    name = "Timepoint",
+    values = c(22,23,24)
+  ) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_B_tr_bulk$values$Eigenvalues[1] / sum(pcoa_B_tr_bulk$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_B_tr_bulk$values$Eigenvalues[2] / sum(pcoa_B_tr_bulk$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_soil() + labs(title = "Bulk soil bacterial community")
+
+S3_B_B
+
+ggsave(paste0(workdir, "plots/pcoa/pcoa_B_bulk_AMFtreatment_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = S3_B_B,
+       width = 7, height = 6, dpi = 600)
+
+```
+
+
+### Fungi
+
+```{r}
+
+S3_F_B <- ggplot(combined_data_F_tr_bulk, aes(x = Axis.1, y = Axis.2, color = Treat, shape = Treat)) +
+  geom_point(aes(fill = Treat), size = 6, color = "black") +
+  geom_convexhull(aes(color = Treat,fill = Treat, group = Treat), alpha = 0.1) +
+  scale_color_manual(values = amf_colors) +
+  scale_fill_manual(values = amf_colors) +
+  scale_shape_manual(
+    name = "Timepoint",
+    values = c(22,23,24)
+  ) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_F_tr_bulk$values$Eigenvalues[1] / sum(pcoa_F_tr_bulk$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_F_tr_bulk$values$Eigenvalues[2] / sum(pcoa_F_tr_bulk$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_soil() + labs(title = "Bulk soil fungal community")
+
+S3_F_B
+
+ggsave(paste0(workdir, "plots/pcoa/pcoa_F_bulk_AMFtreatment_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = S3_F_B,
+       width = 7, height = 6, dpi = 600)
+
+```
+
+## Combined Fig S3
+
+
+```{r}
+# Combine with patchwork
+Figure_S3_combined <- (S3_DV_A | S3_DV_B  ) / (S3_B_A | S3_B_B  ) / (S3_F_A | S3_F_B  ) +
+  plot_annotation(tag_levels = 'A')
+
+Figure_S3_combined
+
+
+ggsave(paste0(workdir, "plots/Manuscript_figures/Figure_S3_combined_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Figure_S3_combined, 
+       width = 14, height = 18, dpi = 600)
+```
+
+
+# Figure S4
+
+Bacteria and Fungi - Bulk soil moisture
+
+## Panel A 
+
+Bacteria
+```{r}
+## ---------------------------
+## Split to bulk compartment
+## ---------------------------
+
+ps_B_tr_bulk <- subset_samples(ps_B_tr, bulk_rhizo == "bulk")
+ps_B_tr_bulk <- filter_taxa(ps_B_tr_bulk, function(x) sum(x) > 0, TRUE)
+
+## Timepoint numeric
+ps_B_tr_bulk@sam_data$Numeric_Timepoint <- case_when(
+  ps_B_tr_bulk@sam_data$Timepoint == "T0" ~ 0,
+  ps_B_tr_bulk@sam_data$Timepoint == "T1" ~ 9,
+  ps_B_tr_bulk@sam_data$Timepoint == "T2" ~ 14,
+  ps_B_tr_bulk@sam_data$Timepoint == "T3" ~ 19
+)
+
+
+ps_B_tr_bulk@sam_data$Time_weeks <- case_when(
+  ps_B_tr_bulk@sam_data$Timepoint == "T0" ~ 0,
+  ps_B_tr_bulk@sam_data$Timepoint == "T1" ~ 9,
+  ps_B_tr_bulk@sam_data$Timepoint == "T2" ~ 14,
+  ps_B_tr_bulk@sam_data$Timepoint == "T3" ~ 19
+)
+
+
+ps_B_tr_bulk@sam_data$Time_month <- case_when(
+  ps_B_tr_bulk@sam_data$Timepoint == "T0" ~ "March",
+  ps_B_tr_bulk@sam_data$Timepoint == "T1" ~ "June",
+  ps_B_tr_bulk@sam_data$Timepoint == "T2" ~ "July",
+  ps_B_tr_bulk@sam_data$Timepoint == "T3" ~ "August"
+)
+
+pcoa_B_tr_bulk <- ordinate(ps_B_tr_bulk, "PCoA", distance = "bray", binary = FALSE)
+
+## Prepare data
+pcoa_result_B_tr_bulk <- as.data.frame(pcoa_B_tr_bulk$vectors)
+temporal_data_B_tr_bulk <- as.data.frame(sample_data(ps_B_tr_bulk))
+combined_data_B_tr_bulk <- cbind(temporal_data_B_tr_bulk, pcoa_result_B_tr_bulk)
+
+centroid_data_B_tr_bulk <- combined_data_B_tr_bulk %>%
+  group_by(Timepoint) %>%
+  summarize(
+    Centroid_X = mean(Axis.1),
+    Centroid_Y = mean(Axis.2)
+  )
+
+combined_data_B_tr_bulk$Timepoint <- factor(
+  combined_data_B_tr_bulk$Timepoint,
+  levels = c("T0", "T1", "T2", "T3")
+)
+
+## Supplemental Figure 3A – Bacteria
+S4_B_A <- ggplot(combined_data_B_tr_bulk, aes(x = Axis.1, y = Axis.2)) +
+  geom_point(aes(fill = soil_moisture_perc, shape = Time_month),
+             color = "black", size = 6) +
+  scale_fill_gradient(low = "#D0B17F", high = "#2171b5") +
+  scale_shape_manual(
+    breaks = c("March", "June", "July", "August"),
+    values = c(21, 22, 23, 24)
+  ) +
+  geom_text_repel(
+    data = centroid_data_B_tr_bulk,
+    aes(x = Centroid_X, y = Centroid_Y, label = Timepoint),
+    size = 4, fontface = 3
+  ) +
+  geom_segment(
+    data = centroid_data_B_tr_bulk,
+    aes(
+      x = lag(Centroid_X), y = lag(Centroid_Y),
+      xend = Centroid_X, yend = Centroid_Y
+    ),
+    arrow = arrow(length = unit(0.3, "cm")),
+    color = "grey",
+    na.rm = TRUE
+  ) +
+  theme_bw() +
+  theme(
+    text = element_text(size = 16),
+    panel.grid = element_blank(),
+    legend.position = "none"
+  ) +
+  xlab(paste0("PCoA axis 1 (",
+              round(pcoa_B_tr_bulk$values$Eigenvalues[1] /
+                    sum(pcoa_B_tr_bulk$values$Eigenvalues) * 100, 2),
+              "%)")) +
+  ylab(paste0("PCoA axis 2 (",
+              round(pcoa_B_tr_bulk$values$Eigenvalues[2] /
+                    sum(pcoa_B_tr_bulk$values$Eigenvalues) * 100, 2),
+              "%)")) +
+  theme_soil()
+
+ggsave(
+  paste0(workdir, "plots/pcoa/S4_B_A_moisture_pcoa_bulk_", Sys.Date(), ".pdf"),
+  plot = S4_B_A,
+  width = 7, height = 6, dpi = 600
+)
+
+```
+
+
+Fungi
+
+```{r}
+## ---------------------------
+## Split to bulk compartment
+## ---------------------------
+
+ps_F_tr_bulk <- subset_samples(ps_F_tr, bulk_rhizo == "bulk")
+ps_F_tr_bulk <- filter_taxa(ps_F_tr_bulk, function(x) sum(x) > 0, TRUE)
+
+## Timepoint numeric
+ps_F_tr_bulk@sam_data$Numeric_Timepoint <- case_when(
+  ps_F_tr_bulk@sam_data$Timepoint == "T0" ~ 0,
+  ps_F_tr_bulk@sam_data$Timepoint == "T1" ~ 9,
+  ps_F_tr_bulk@sam_data$Timepoint == "T2" ~ 14,
+  ps_F_tr_bulk@sam_data$Timepoint == "T3" ~ 19
+)
+
+ps_F_tr_bulk@sam_data$Time_weeks <- case_when(
+  ps_F_tr_bulk@sam_data$Timepoint == "T0" ~ 0,
+  ps_F_tr_bulk@sam_data$Timepoint == "T1" ~ 9,
+  ps_F_tr_bulk@sam_data$Timepoint == "T2" ~ 14,
+  ps_F_tr_bulk@sam_data$Timepoint == "T3" ~ 19
+)
+
+ps_F_tr_bulk@sam_data$Time_month <- case_when(
+  ps_F_tr_bulk@sam_data$Timepoint == "T0" ~ "March",
+  ps_F_tr_bulk@sam_data$Timepoint == "T1" ~ "June",
+  ps_F_tr_bulk@sam_data$Timepoint == "T2" ~ "July",
+  ps_F_tr_bulk@sam_data$Timepoint == "T3" ~ "August"
+)
+
+pcoa_F_tr_bulk <- ordinate(ps_F_tr_bulk, "PCoA", distance = "bray", binary = FALSE)
+
+## Prepare data
+pcoa_result_F_tr_bulk <- as.data.frame(pcoa_F_tr_bulk$vectors)
+temporal_data_F_tr_bulk <- as.data.frame(sample_data(ps_F_tr_bulk))
+combined_data_F_tr_bulk <- cbind(temporal_data_F_tr_bulk, pcoa_result_F_tr_bulk)
+
+centroid_data_F_tr_bulk <- combined_data_F_tr_bulk %>%
+  group_by(Timepoint) %>%
+  summarize(
+    Centroid_X = mean(Axis.1),
+    Centroid_Y = mean(Axis.2)
+  )
+
+combined_data_F_tr_bulk$Timepoint <- factor(
+  combined_data_F_tr_bulk$Timepoint,
+  levels = c("T0", "T1", "T2", "T3")
+)
+
+## Supplemental Figure 3A – Fungi
+S4_F_A <- ggplot(combined_data_F_tr_bulk, aes(x = Axis.1, y = Axis.2)) +
+  geom_point(aes(fill = soil_moisture_perc, shape = Time_month),
+             color = "black", size = 6) +
+  scale_fill_gradient(low = "#D0B17F", high = "#2171b5") +
+  scale_shape_manual(
+    breaks = c("March", "June", "July", "August"),
+    values = c(21, 22, 23, 24)
+  ) +
+  geom_text_repel(
+    data = centroid_data_F_tr_bulk,
+    aes(x = Centroid_X, y = Centroid_Y, label = Timepoint),
+    size = 4, fontface = 3
+  ) +
+  geom_segment(
+    data = centroid_data_F_tr_bulk,
+    aes(
+      x = lag(Centroid_X), y = lag(Centroid_Y),
+      xend = Centroid_X, yend = Centroid_Y
+    ),
+    arrow = arrow(length = unit(0.3, "cm")),
+    color = "grey",
+    na.rm = TRUE
+  ) +
+  theme_bw() +
+  theme(
+    text = element_text(size = 16),
+    panel.grid = element_blank(),
+    legend.position = "none"
+  ) +
+  xlab(paste0("PCoA axis 1 (",
+              round(pcoa_F_tr_bulk$values$Eigenvalues[1] /
+                    sum(pcoa_F_tr_bulk$values$Eigenvalues) * 100, 2),
+              "%)")) +
+  ylab(paste0("PCoA axis 2 (",
+              round(pcoa_F_tr_bulk$values$Eigenvalues[2] /
+                    sum(pcoa_F_tr_bulk$values$Eigenvalues) * 100, 2),
+              "%)")) +
+  theme_soil()
+
+ggsave(
+  paste0(workdir, "plots/pcoa/S4_F_A_moisture_pcoa_bulk_", Sys.Date(), ".pdf"),
+  plot = S4_F_A,
+  width = 7, height = 6, dpi = 600
+)
+
+```
+
+
+## Panel B
+
+### Bacteria
+```{r}
+
+## --------------------------------------------
+## Axis.1 vs Time — Bacteria (Supplemental)
+## --------------------------------------------
+
+data_B_bulk <- combined_data_B_tr_bulk %>%
+  filter(!is.na(Time_weeks) & !is.na(Axis.1))
+
+cor_B_time <- cor.test(data_B_bulk$Time_weeks, data_B_bulk$Axis.1)
+
+S4_B_B <- 
+  ggplot(data_B_bulk, aes(y = Axis.1, x = Time_weeks, fill = soil_moisture_perc, shape = Time_month)) +
+    geom_point(size = 6) +
+      geom_smooth(aes(group = 1), method = "lm", se = FALSE, color = "black") +
+  scale_fill_gradient(low = "#D0B17F", high = "#2171b5") +
+  scale_shape_manual(
+    breaks = c("March", "June", "July", "August"),
+    values = c(21, 22, 23, 24)
+  ) +
+  annotate("text",
+           y = min(data_B_bulk$Time_weeks, na.rm = TRUE),
+           x = max(data_B_bulk$Axis.1, na.rm = TRUE),
+           label = paste0("r = ", round(cor_B_time$estimate, 2),
+                          ", p = ", signif(cor_B_time$p.value, 2)),
+           hjust = 0, vjust = 1.5, size = 6) +
+  labs(y = "Bulk soil bacterial PCoA Axis 1", x = "Time (weeks)", color = "Soil moisture (%)") + 
+  theme_soil()
+
+S4_B_B
+
+ggsave(
+  paste0(workdir, "plots/axis_moisture/S4_B_B_Axis1_vs_Time_", Sys.Date(), ".pdf"),
+  plot = S4_B_B,
+  width = 7, height = 6, dpi = 600
+)
+
+
+```
+
+
+### Fungi
+```{r}
+## --------------------------------------------
+##  Axis.1 vs Time — Fungi (Supplemental)
+## --------------------------------------------
+
+data_F_bulk <- combined_data_F_tr_bulk %>%
+  filter(!is.na(Time_weeks) & !is.na(Axis.1))
+
+cor_F_time <- cor.test(data_F_bulk$Time_weeks, data_F_bulk$Axis.1)
+
+S4_F_B <- ggplot(data_F_bulk, aes(x = Time_weeks, y = Axis.1, color = soil_moisture_perc)) +
+  geom_point(size = 6) +
+  geom_smooth(method = "lm", se = FALSE, color = "black") +
+  annotate("text",
+           x = min(data_F_bulk$Time_weeks, na.rm = TRUE),
+           y = max(data_F_bulk$Axis.1, na.rm = TRUE),
+           label = paste0("r = ", round(cor_F_time$estimate, 2),
+                          ", p = ", signif(cor_F_time$p.value, 2)),
+           hjust = 0, vjust = 1.5, size = 4) +
+  scale_color_gradient(
+    low = "#C9A46C",
+    high = "#2171b5"
+  ) +
+  labs(x = "Time (weeks)", y = "Axis 1", color = "Soil moisture (%)") + 
+  theme_soil()
+
+S4_F_B
+
+ggsave(
+  paste0(workdir, "plots/axis_moisture/S4_F_B_Axis1_vs_Time_", Sys.Date(), ".pdf"),
+  plot = S4_F_B,
+  width = 7, height = 6, dpi = 600
+)
+
+
+```
+
+
+## Panel C
+
+Axis 1 and soil moisture
+
+### Bacteria
+
+```{r}
+
+## Axis.1 vs Soil Moisture (Panel C)
+
+data_b_bulk <- combined_data_B_tr_bulk %>%
+  filter(!is.na(soil_moisture_perc) & !is.na(Axis.1))
+
+cor_b_soil <- cor.test(data_b_bulk$soil_moisture_perc, data_b_bulk$Axis.1)
+
+S4_B_C <- ggplot(data_B_bulk, aes(y = Axis.1, x = soil_moisture_perc, fill = soil_moisture_perc, shape = Time_month)) +
+       geom_point(size = 6) +
+         geom_smooth(aes(group = 1), method = "lm", se = FALSE, color = "black") +
+         scale_fill_gradient(low = "#D0B17F", high = "#2171b5") +
+         scale_shape_manual(
+           breaks = c("March", "June", "July", "August"),
+           values = c(21, 22, 23, 24)
+         ) +
+  annotate("text",
+           x = min(data_b_bulk$soil_moisture_perc, na.rm = TRUE),
+           y = max(data_b_bulk$Axis.1, na.rm = TRUE),
+           label = paste0("r = ", round(cor_b_soil$estimate, 2),
+                          ", p = ", signif(cor_b_soil$p.value, 2)),
+           hjust = 0, vjust = 1.5, size = 6) +
+  labs(y = "Bulk soil bacterial PCoA Axis 1", x = "Soil moisture (%)", color = "Soil moisture (%)") + 
+  theme_soil()
+
+
+S4_B_C
+
+ggsave(
+  paste0(workdir, "plots/axis_moisture/B_Axis1_vs_SoilMoisture_", Sys.Date(), ".pdf"),
+  plot = S4_B_C,
+  width = 7, height = 6,
+  dpi = 600
+)
+
+```
+
+
+### Fungi
+
+```{r}
+
+## Axis.1 vs Soil Moisture (Panel C)
+
+data_f_bulk <- combined_data_F_tr_bulk %>%
+  filter(!is.na(soil_moisture_perc) & !is.na(Axis.1))
+
+cor_f_soil <- cor.test(data_f_bulk$soil_moisture_perc, data_f_bulk$Axis.1)
+
+S4_F_C <- ggplot(data_f_bulk, 
+                 aes(x = soil_moisture_perc, 
+                     y = Axis.1, 
+                     color = Time_month)) +
+  geom_point(size = 5) +
+  geom_smooth(method = "lm", se = FALSE, color = "black") +
+  annotate("text",
+           x = min(data_f_bulk$soil_moisture_perc, na.rm = TRUE),
+           y = max(data_f_bulk$Axis.1, na.rm = TRUE),
+           label = paste0("r = ", round(cor_f_soil$estimate, 2),
+                          ", p = ", signif(cor_f_soil$p.value, 2)),
+           hjust = 0, vjust = 1.5, size = 4) +
+  scale_color_manual(values = c(
+    "March"  = "#C9A46C",
+    "June"   = "#BA7F3A",
+    "July"   = "#8F5A28",
+    "August" = "#5E4224"
+  )) +
+  labs(x = "Soil moisture (%)",
+       y = "Axis 1",
+       color = "Time (month)") +
+  theme_soil()
+
+S4_F_C
+
+ggsave(
+  paste0(workdir, "plots/axis_moisture/F_Axis1_vs_SoilMoisture_", Sys.Date(), ".pdf"),
+  plot = S4_F_C,
+  width = 7, height = 6,
+  dpi = 600
+)
+
+```
+
+#### Fungi - Axis 2
+
+```{r}
+
+
+cor_f_soil_A2 <- cor.test(data_f_bulk$soil_moisture_perc, data_f_bulk$Axis.2)
+
+S4_F_C2 <- ggplot(data_f_bulk, aes(y = Axis.2, x = soil_moisture_perc, fill = soil_moisture_perc, shape = Time_month)) +
+       geom_point(size = 6) +
+         geom_smooth(aes(group = 1), method = "lm", se = FALSE, color = "black") +
+         scale_fill_gradient(low = "#D0B17F", high = "#2171b5") +
+         scale_shape_manual(
+           breaks = c("March", "June", "July", "August"),
+           values = c(21, 22, 23, 24)
+         ) +
+  annotate("text",
+           x = min(data_f_bulk$soil_moisture_perc, na.rm = TRUE),
+           y = max(data_f_bulk$Axis.2, na.rm = TRUE),
+           label = paste0("r = ", round(cor_f_soil_A2$estimate, 2),
+                          ", p = ", signif(cor_f_soil_A2$p.value, 2)),
+           hjust = 0, vjust = 1.5, size = 6) +
+  labs(y = "Bulk soil fungal PCoA Axis 2", x = "Soil moisture (%)", color = "Soil moisture (%)") + 
+  theme_soil()
+
+S4_F_C2
+
+ggsave(
+  paste0(workdir, "plots/axis_moisture/F_Axis2_vs_SoilMoisture_", Sys.Date(), ".pdf"),
+  plot = S4_F_C2,
+  width = 7, height = 6,
+  dpi = 600
+)
+
+```
+
+
+## Panel D
+
+
+### Bacteria
+
+```{r}
+
+## Bacteria
+S4_B_D <- 
+  
+ggplot(alpha_B_tr_m %>% filter( bulk_rhizo == "bulk"),
+       aes(x = soil_moisture_perc, y = observed, fill = soil_moisture_perc, shape = Time_month)
+) +
+  geom_point(size = 6) +
+  labs(
+    title = "",
+    x = "Soil moisture (%)",
+    y = "Number of bacterial ASVs"
+  ) +
+  
+  # Single regression line for all bulk samples
+  geom_smooth(
+    data = alpha_B_tr_m %>% filter( bulk_rhizo == "bulk"),
+    mapping = aes(x = soil_moisture_perc, y = observed), # explicitly set
+    method = "lm",
+    se = FALSE,
+    color = "black",
+    inherit.aes = FALSE # prevents re-using main plot aesthetics
+  ) +
+  
+  # R² and p-value for all bulk samples
+  stat_poly_eq(
+    data = alpha_B_tr_m %>% filter( bulk_rhizo == "bulk"),
+    mapping = aes(x = soil_moisture_perc, y = observed,
+                  label = paste(..rr.label.., ..p.value.label.., sep = "~~~")),
+    formula = y ~ x,
+    parse = TRUE,
+    color = "black",
+    inherit.aes = FALSE
+  ) +
+  
+  # Manual color and shape scales
+  moisture_gradient_fill +
+  scale_shape_manual(
+    name = "Time_month",
+    breaks = c("March", "June", "July", "August"),
+    values = c(21,22,23,24)
+  ) +
+  theme_soil()
+
+
+S4_B_D
+
+ggsave(
+  filename = paste0(workdir, "plots/richness_moisture/scatter_alpha_moisture_plot_B_time_", Sys.Date(), ".pdf"),
+  plot = S4_B_D,
+  width = 7, height = 6
+)
+
+
+
+```
+
+### Fungi
+
+```{r}
+## Fungi
+S4_F_D <- 
+  
+ggplot(alpha_F_tr_m %>% filter( bulk_rhizo == "bulk"),
+       aes(x = soil_moisture_perc, y = observed, fill = soil_moisture_perc, shape = Time_month)
+) +
+  geom_point(size = 6) +
+  labs(
+    title = "",
+    x = "Soil moisture (%)",
+    y = "Number of fungal ASVs"
+  ) +
+  
+  # Single regression line for all bulk samples
+  geom_smooth(
+    data = alpha_F_tr_m %>% filter( bulk_rhizo == "bulk"),
+    mapping = aes(x = soil_moisture_perc, y = observed), # explicitly set
+    method = "lm",
+    se = FALSE,
+    color = "black",
+    inherit.aes = FALSE # prevents re-using main plot aesthetics
+  ) +
+  
+  # R² and p-value for all bulk samples
+  stat_poly_eq(
+    data = alpha_F_tr_m %>% filter( bulk_rhizo == "bulk"),
+    mapping = aes(x = soil_moisture_perc, y = observed,
+                  label = paste(..rr.label.., ..p.value.label.., sep = "~~~")),
+    formula = y ~ x,
+    parse = TRUE,
+    color = "black",
+    inherit.aes = FALSE
+  ) +
+  
+  # Manual color and shape scales
+  moisture_gradient_fill +
+  scale_shape_manual(
+    name = "Time_month",
+    breaks = c("March", "June", "July", "August"),
+    values = c(21,22,23,24)
+  ) +
+  theme_soil()
+
+S4_F_D
+
+ggsave(
+  filename = paste0(workdir, "plots/richness_moisture/scatter_alpha_moisture_plot_F_time_", Sys.Date(), ".pdf"),
+  plot = S4_F_D,
+  width = 7, height = 6
+)
+
+```
+
+
+## Figure S4 - G
+
+PCA of bulk soil chemistry
+
+```{r}
+
+ordered_sample_ids <- sample_data(ps_DV_tr_bulk)$SampleID
+
+virus_data_ordered <- virus_data[ordered_sample_ids, ]
+
+# Scale and Order Soil Chemistry Data
+soil_chem_data <- meta(ps_DV_tr_bulk)
+soil_chem_data <- soil_chem_data[ordered_sample_ids, ]
+
+## WITH soil moisture
+soil_chem_data_scaled <- soil_chem_data %>% 
+  as.data.frame() %>% 
+  select(-('WDRF_Buffer_pH')) %>%
+  mutate(across(`soil_moisture_perc`:`CEC_Sum_of_Cations_me_100g`, ~scale(.))) %>%
+  select(`soil_moisture_perc`:`CEC_Sum_of_Cations_me_100g`) 
+
+soil_chem_data_scaled$SampleID <- rownames(soil_chem_data_scaled)
+
+soil_chem_data_scaled_NO_moisture <- soil_chem_data_scaled %>%
+  select(-soil_moisture_perc)   # 
+
+# Run PCA
+pca_chem <- prcomp(soil_chem_data_scaled_NO_moisture, center = TRUE, scale. = TRUE)
+
+# Summary of PCA
+summary(pca_chem)  # variance explained by PC1, PC2, etc.
+
+# Extract scores for samples
+scores <- as.data.frame(pca_chem$x)
+
+# Add metadata (time and soil moisture)
+# If there is a column for bulk/rhizo, filter bulk only
+temporal_df_bulk <- temporal_data_DV_tr[temporal_data_DV_tr$bulk_rhizo == "bulk", ]
+
+# Now combine with PCA scores
+pca_soil_chem_data <- cbind(temporal_df_bulk, scores)
+
+######################
+# Make Time_month a factor
+pca_soil_chem_data$Time_month <- factor(pca_soil_chem_data$Time_month, levels = c("March", "June", "July", "August"))
+
+# Basic PCA biplot with convex hulls by Time_month
+S4_G <- 
+ggplot(pca_soil_chem_data, aes(x = PC1, y = PC2, fill = soil_moisture_perc, shape = Time_month)) +
+  geom_point(size = 6) +
+  scale_fill_gradient(low = "#D0B17F", high = "#2171b5") +
+  scale_shape_manual(
+    breaks = c("March", "June", "July", "August"),
+    values = c(21, 22, 23, 24)
+  ) +
+  xlab(paste0("PC1 (", round(summary(pca_chem)$importance[2,1]*100, 1), "%)")) +
+  ylab(paste0("PC2 (", round(summary(pca_chem)$importance[2,2]*100, 1), "%)")) +
+    labs(y = "Bulk soil chemistry PCA Axis 2", 
+         x = "Bulk soil chemistry PCA Axis 1", 
+         fill = "Soil moisture (%)") +
+    theme_soil()
+
+
+S4_G
+
+ggsave(paste0(workdir, "plots/axis_moisture/PCA_BulkChemistry_", Sys.Date(), ".pdf"),
+       plot = S4_G, 
+       width = 7, height = 6, 
+       dpi = 600)
+
+
+```
+
+## Combine Fig S4 ABCD
+
+```{r}
+# Combine with patchwork
+library(patchwork)
+
+Fig_S4_combined <- (S4_B_C | S4_F_C2) / 
+                   (Fig3_E | Fig3_F) / 
+                   (S4_B_D | S4_F_D) / 
+                   (S4_G | plot_spacer()) +
+  plot_annotation(tag_levels = 'A') &
+  theme(plot.margin = margin(1,1,1,1))
+Fig_S4_combined
+
+
+ggsave(paste0(workdir, "plots/Manuscript_figures/Fig_S4_combined_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig_S4_combined, 
+       width = 10, height = 16, dpi = 600)
+
+```
+
+
+# Figure S5 - boxplots - plant variables
+
+```{r}
+
+library(ggpubr)
+library(ggplot2)
+library(rstatix)
+library(dplyr)
+library(stringr)
+
+# Define the variable names you're interested in
+start_col <- which(names(plant_data_dec23) == "Total Soluble Solids")
+end_col <- which(names(plant_data_dec23) == "Total Fruit Hand Harvest Estimate")
+target_vars <- c("Root Length Colonized", names(plant_data_dec23)[start_col:end_col])
+
+# Create a list to store plots
+plot_list <- list()
+
+# Generate each plot and store in list
+for (var in target_vars) {
+  
+  # Perform statistical test
+  stat_test <- plant_data_dec23 %>%
+    t_test(as.formula(paste0("`", var, "` ~ Treatment"))) %>%
+    add_significance("p") %>%
+    add_xy_position(x = "Treatment")
+  
+  # Format variable name: only capitalize first word
+  var_label <- str_to_sentence(var)
+  
+  # Create base plot
+  p <- ggboxplot(plant_data_dec23, 
+                 x = "Treatment", 
+                 y = var,
+                 fill = "Treatment",
+                 palette = amf_colors,
+                 title = "",
+                 xlab = "",
+                 ylab = var_label) +
+    theme_bw() +
+    theme(legend.position = "none",
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank()) +
+    stat_pvalue_manual(
+      stat_test,
+      label = "p.signif",
+      tip.length = 0.02,
+      hide.ns = FALSE,
+      label.size = 8
+    ) +
+    scale_y_continuous(expand = expansion(mult = c(0.05, 0.15)))  # 5% bottom, 15% top
+
+  
+  plot_list[[var]] <- p
+}
+
+# Arrange all plots on one page
+combined_plot_2 <- ggarrange(plotlist = plot_list, 
+                             ncol = 3,
+                             nrow = ceiling(length(plot_list) / 3),
+                             common.legend = FALSE,
+                             labels = "AUTO")  # Adds A, B, C, etc.
+
+combined_plot_2
+
+# Save to PDF
+plot_file <- paste0(workdir, "plots/Manuscript_figures/S5_plant_boxplots_combined_", Sys.Date(), ".pdf")
+ggsave(plot_file, combined_plot_2, width = 14, height = 10, device = "pdf")
+
+
+```
+
+
+# Desiccation test
+
+Analysis of desiccation-related gene expression in rhizosphere metatranscriptomes
+Based on desiccation-upregulated genes identified in Scales et al. 2023
+DOI: 10.1111/1462-2920.16494
+
+```{r}
+
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(lme4)
+library(lmerTest)
+library(emmeans)
+
+# ------------------------------------------------------------------------------
+# Step 1: Define desiccation-upregulated genes from Scales et al. 2023 (Table 3)
+# ------------------------------------------------------------------------------
+# These genes were identified as significantly upregulated during desiccation
+# stress in Curtobacterium (across Clades I, IV, and V)
+
+desiccation_up_genes <- c(
+  # Efflux pumps
+  "macB",    # Antibiotic efflux pump
+  "arsB",    # Arsenic efflux pump
+  "cnrH",    # Efflux pump sigma factor
+  
+  # DNA repair and recombination
+  "recA",    # DNA recombination
+  "recN",    # DNA recombination
+  "uvrA",    # DNA repair
+  "dps",     # Negatively regulates DNA replication
+  
+  # SOS response
+  "lexA",    # SOS Response
+  "recX",    # SOS Response
+  
+  # Osmolyte synthesis (KEY desiccation markers)
+  "dhaK",    # Osmolyte synthesis
+  "dhaM",    # Osmolyte synthesis
+  "treZ",    # Trehalose synthesis
+  "treY",    # Trehalose synthesis
+  "otsB",    # Trehalose synthesis
+  
+  # Oxidative stress response
+  "katA",    # Reactive oxygen scavenging (catalase)
+  "ahpF",    # Reactive oxygen scavenging
+  
+  # Sporulation and stress response
+  "gdh",     # Sporulation
+  "sigK",    # Sporulation sigma factor
+  "rpoE",    # Stress response sigma factor
+  
+  # Other
+  "tgnD",    # Degrades trigonelline
+  "gabD",    # Degrades trigonelline
+  "fadA"     # Fatty acid synthesis
+)
+
+# Create regex pattern for filtering
+# This will match gene names in your Preferred_name column
+gene_pattern <- paste0("\\b(", paste(desiccation_up_genes, collapse = "|"), ")\\b")
+
+# ------------------------------------------------------------------------------
+# Step 2: Filter metaT data to desiccation-upregulated genes only
+# ------------------------------------------------------------------------------
+
+desiccation_df <- annotated_expression_long %>%
+  filter(
+    str_detect(Preferred_name, regex(gene_pattern, ignore_case = TRUE))
+  ) %>%
+  mutate(
+    # Categorize genes by functional role (based on Scales et al. Table 3)
+    gene_category = case_when(
+      Preferred_name %in% c("dhaK", "dhaM", "treZ", "treY", "otsB") ~ "Osmolyte synthesis",
+      Preferred_name %in% c("recA", "recN", "uvrA", "dps") ~ "DNA repair/recombination",
+      Preferred_name %in% c("katA", "ahpF") ~ "Oxidative stress",
+      Preferred_name %in% c("lexA", "recX") ~ "SOS response",
+      Preferred_name %in% c("macB", "arsB", "cnrH") ~ "Efflux pumps",
+      Preferred_name %in% c("gdh", "sigK", "rpoE") ~ "Sporulation/stress sigma factors",
+      TRUE ~ "Other desiccation-related"
+    )
+  )
+
+# Print summary of genes found
+cat("\n=== Genes found in dataset ===\n")
+desiccation_df %>%
+  count(Preferred_name, gene_category) %>%
+  arrange(gene_category, Preferred_name) %>%
+  print(n = 100)
+
+cat("\nTotal unique genes found:", length(unique(desiccation_df$Preferred_name)), "/", length(desiccation_up_genes), "\n")
+
+# ------------------------------------------------------------------------------
+# Step 3: Calculate relative abundance of desiccation-upregulated genes
+# ------------------------------------------------------------------------------
+
+# Get total abundance per sample for normalization
+total_by_sample <- annotated_expression_long %>%
+  group_by(SampleID) %>%
+  summarise(total_abundance = sum(abundance, na.rm = TRUE))
+
+# Calculate relative abundance of desiccation genes
+desiccation_rel <- desiccation_df %>%
+  group_by(SampleID, Timepoint, Treatment, Site) %>%
+  summarise(desiccation_abundance = sum(abundance, na.rm = TRUE), .groups = "drop") %>%
+  left_join(total_by_sample, by = "SampleID") %>%
+  mutate(rel_desiccation_abundance = desiccation_abundance / total_abundance)
+
+# Convert timepoint to numeric weeks for analysis
+desiccation_rel <- desiccation_rel %>%
+  mutate(
+    Timepoint = factor(Timepoint, levels = c("T1", "T2", "T3"), ordered = TRUE),
+    week = case_when(
+      Timepoint == "T1" ~ 9,
+      Timepoint == "T2" ~ 14,
+      Timepoint == "T3" ~ 19,
+      TRUE ~ NA_real_
+    )
+  )
+
+# ------------------------------------------------------------------------------
+# Step 4: Statistical test - Linear Mixed Model
+# ------------------------------------------------------------------------------
+# Research question: Do control plants show NO increase in desiccation genes?
+# H0: slope for Control = 0 (no temporal trend)
+# H1: slope for Control ≠ 0
+
+# Fit model with interaction to test treatment-specific slopes
+model_interaction <- lmer(
+  rel_desiccation_abundance ~ week * Treatment + (1|Site), 
+  data = desiccation_rel
+)
+
+cat("\n=== Mixed Model Results ===\n")
+summary(model_interaction)
+
+# Extract coefficients for interpretation
+model_summary <- summary(model_interaction)
+coef_table <- coef(model_summary)
+
+# Test specific hypothesis: is Control slope = 0?
+control_slope <- coef_table["week", "Estimate"]
+control_slope_se <- coef_table["week", "Std. Error"]
+control_slope_p <- coef_table["week", "Pr(>|t|)"]
+
+cat("\n=== Key Results ===\n")
+cat("Control plants temporal trend (week effect):\n")
+cat("  Slope:", round(control_slope, 6), "\n")
+cat("  Std. Error:", round(control_slope_se, 6), "\n")
+cat("  p-value:", round(control_slope_p, 4), "\n")
+if (control_slope_p > 0.05) {
+  cat("  Interpretation: No significant increase in desiccation genes in control plants (p > 0.05)\n")
+} else {
+  cat("  Interpretation: Significant temporal change detected (p < 0.05)\n")
+}
+
+# ------------------------------------------------------------------------------
+# Step 5: Visualization
+# ------------------------------------------------------------------------------
+
+# Main plot: Temporal trend
+desiccation_plot <- ggplot(desiccation_rel, 
+                           aes(x = week, y = rel_desiccation_abundance, 
+                               color = Treatment)) +
+  geom_point(alpha = 0.5, size = 3) +
+  geom_smooth(method = "lm", se = TRUE, linewidth = 1.2) +
+  scale_color_manual(
+    breaks = c("Control", "Treatment"),
+    values = c("#72b01d", "#B53471"),
+    labels = c("Control", "Drought Treatment")
+  ) +
+  theme_bw(base_size = 14) +
+  theme(
+    panel.grid.minor = element_blank(),
+    legend.position = "bottom"
+  ) +
+  labs(
+    x = "Time (weeks)",
+    y = "Relative abundance of desiccation-upregulated genes",
+    color = "Treatment",
+    title = "Expression of desiccation stress marker genes",
+    subtitle = "Based on Scales et al. 2023 - genes upregulated during desiccation in Curtobacterium",
+    caption = "Linear mixed model with site as random effect"
+  )
+
+print(desiccation_plot)
+
+# Save plot
+ggsave(
+  paste0(workdir, "plots/metaT/desiccation_genes_Scales2023_", Sys.Date(), ".pdf"), 
+  plot = desiccation_plot, 
+  width = 10, height = 7, dpi = 300
+)
+
+#####################################
+# ==============================================================================
+# CODE TO GENERATE TABLE S3 - Complete version with all variable extraction
+# ==============================================================================
+
+# Your existing model
+model_interaction <- lmer(
+  rel_desiccation_abundance ~ week * Treatment + (1|Site), 
+  data = desiccation_rel
+)
+
+# Get slopes for each treatment
+emtrends_result <- emtrends(model_interaction, ~ Treatment, var = "week")
+
+# Test if slopes are different from 0
+slope_tests <- test(emtrends_result, null = 0)
+
+# ------------------------------------------------------------------------------
+# Step 2: Extract values for the table
+# ------------------------------------------------------------------------------
+
+# Get the summary data frames
+slopes_summary <- summary(emtrends_result)
+test_summary <- summary(slope_tests)
+
+# Extract values for Control
+control_slope <- slopes_summary$week.trend[slopes_summary$Treatment == "Control"]
+control_SE <- slopes_summary$SE[slopes_summary$Treatment == "Control"]
+control_df <- test_summary$df[test_summary$Treatment == "Control"]
+control_p <- test_summary$p.value[test_summary$Treatment == "Control"]
+control_t <- test_summary$t.ratio[test_summary$Treatment == "Control"]
+control_CI_lower <- slopes_summary$lower.CL[slopes_summary$Treatment == "Control"]
+control_CI_upper <- slopes_summary$upper.CL[slopes_summary$Treatment == "Control"]
+
+# Extract values for Treatment (AMF)
+treatment_slope <- slopes_summary$week.trend[slopes_summary$Treatment == "Treatment"]
+treatment_SE <- slopes_summary$SE[slopes_summary$Treatment == "Treatment"]
+treatment_df <- test_summary$df[test_summary$Treatment == "Treatment"]
+treatment_p <- test_summary$p.value[test_summary$Treatment == "Treatment"]
+treatment_t <- test_summary$t.ratio[test_summary$Treatment == "Treatment"]
+treatment_CI_lower <- slopes_summary$lower.CL[slopes_summary$Treatment == "Treatment"]
+treatment_CI_upper <- slopes_summary$upper.CL[slopes_summary$Treatment == "Treatment"]
+
+# ------------------------------------------------------------------------------
+# Step 3: Create Table S3A - Summary Statistics
+# ------------------------------------------------------------------------------
+
+table_S3A <- data.frame(
+  Treatment = c("Control", "AMF-treated"),
+  Slope = c(control_slope, treatment_slope),
+  SE = c(control_SE, treatment_SE),
+  CI_lower = c(control_CI_lower, treatment_CI_lower),
+  CI_upper = c(control_CI_upper, treatment_CI_upper),
+  t_value = c(control_t, treatment_t),
+  df = c(control_df, treatment_df),
+  p_value = c(control_p, treatment_p),
+  Significance = c(
+    ifelse(control_p < 0.05, "*", "ns"),
+    ifelse(treatment_p < 0.05, "*", "ns")
+  )
+)
+
+# Format for better display
+table_S3A_formatted <- table_S3A %>%
+  mutate(
+    Slope_formatted = sprintf("%.2e", Slope),
+    SE_formatted = sprintf("%.2e", SE),
+    CI_95 = sprintf("[%.2e, %.2e]", CI_lower, CI_upper),
+    t_formatted = sprintf("%.3f", t_value),
+    df_formatted = sprintf("%.1f", df),
+    p_formatted = sprintf("%.3f", p_value)
+  ) %>%
+  select(Treatment, Slope_formatted, SE_formatted, CI_95, t_formatted, 
+         df_formatted, p_formatted, Significance)
+
+# Rename columns for final table
+colnames(table_S3A_formatted) <- c("Treatment", "Slope (week⁻¹)", "SE", 
+                                   "95% CI", "t", "df", "p-value", "Sig.")
+
+cat("\n=== TABLE S3A: Summary Statistics ===\n")
+print(table_S3A_formatted, row.names = FALSE)
+
+# Save table
+write.csv(table_S3A_formatted, 
+          paste0(workdir, "results/Table_S3A_desiccation_summary_", Sys.Date(), ".csv"),
+          row.names = FALSE)
+
+```

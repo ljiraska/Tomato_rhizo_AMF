@@ -1,0 +1,3612 @@
+---
+title: "Tomato_manuscript_AMF"
+author: "LJ"
+date: "2026-03-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require("knitr")
+
+opts_knit$set(root.dir = "/Users/ljiraska/Library/CloudStorage/OneDrive-UniversityofCalifornia,Davis/Projects/Tomato_rhizosphere_Ani/Analysis/") 
+
+```
+
+# Load data
+
+```{r include=FALSE}
+
+# Load packages
+library(microbiome)
+library(phyloseq)
+library(RColorBrewer)
+library(ggpubr)
+library(dplyr)
+library(vegan)
+library(ggplot2)
+library(VennDiagram)
+library(csv)
+library(readr)
+library(microViz)
+library(ggConvexHull)
+library(metagMisc)
+library(ggrepel)
+
+library(geodist)
+
+library(eulerr)
+library(ggpmisc)
+
+library(patchwork)
+library(pheatmap)
+
+###
+set.seed(10292023)
+
+# Macbook
+workdir = "/Users/ljiraska/Library/CloudStorage/OneDrive-UniversityofCalifornia,Davis/Projects/Tomato_rhizosphere_Ani/Analysis/"
+
+```
+
+
+# Color scheme
+
+```{r eval=FALSE, include=FALSE}
+#### ============================================================
+####  Color palette
+#### ============================================================
+
+### ggplot2 theme
+
+theme_soil <- function(base_size = 16, legend = "none") {
+  theme_bw(base_size = base_size) +
+    theme(
+      text = element_text(size = base_size),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      legend.position = legend,
+      strip.background = element_rect(fill = "grey90", color = "black"),
+      strip.text = element_text(size = base_size * 0.9),
+      axis.title = element_text(size = base_size * 1.1),
+      axis.text = element_text(size = base_size * 0.9)
+    )
+}
+
+### ------------------------------------------------------------
+### 1. Soil compartment colors (bulk vs rhizosphere)
+### ------------------------------------------------------------
+
+compartment_colors <- c(
+  "bulk"  = "#BA7F3A",  
+  "rhizo" = "#3C8E3A"  
+)
+
+
+### ------------------------------------------------------------
+### 2. Bulk & Rhizosphere across time (T0–T3)
+### ------------------------------------------------------------
+
+time_colors <- c(
+  # Bulk (browns)
+  "bulk_T0" = "#C9A46C",  
+  "bulk_T1" = "#BA7F3A",
+  "bulk_T2" = "#8F5A28",
+  "bulk_T3" = "#5E4224",
+  
+  # Rhizosphere (greens)
+  "rhizo_T1" = "#6BBF59",
+  "rhizo_T2" = "#3C8E3A",
+  "rhizo_T3" = "#1F5F2A"
+)
+
+
+### ------------------------------------------------------------
+### 3. Bulk soil seasonal colors (month-level)
+### ------------------------------------------------------------
+
+bulk_month_colors <- c(
+  "March"  = "#C9A46C",
+  "June"   = "#BA7F3A",
+  "July"   = "#8F5A28",
+  "August" = "#5E4224"
+)
+
+### ------------------------------------------------------------
+### 4. Rhizosphere seasonal colors (month-level)
+### ------------------------------------------------------------
+
+rhizo_month_colors <- c(
+  "June" = "#6BBF59",
+  "July" = "#3C8E3A",
+  "August" = "#1F5F2A"
+)
+
+### ------------------------------------------------------------
+### 5. Dry → Wet soil gradient
+### ------------------------------------------------------------
+
+moisture_gradient <- scale_color_gradient(
+  low  = "#B8945E",   # darker tan (dry soil)
+  high = "#08519C"    # darker blue (wet soil)
+)
+
+### ------------------------------------------------------------
+### 6. Sampling plot colors
+### ------------------------------------------------------------
+
+plot_colors <- c(
+  "1_4" = "#7B5FAE",  # deeper purple
+  "5_5" = "#2D9CA2",  # strong teal
+  "7_8" = "#E066A1"   # bright but not neon pink
+)
+
+### ------------------------------------------------------------
+### 7. AMF treatment colors
+### ------------------------------------------------------------
+
+amf_colors <- c(
+  "Control"   = "#B0B0B0",  # medium gray
+  "Treatment" = "#344B7E"   # muted dark blue
+)
+
+direction_colors <- c(
+    "Up"   = "#344B7E",
+    "Down" = "#B0B0B0"
+  )
+### ------------------------------------------------------------
+### 8. Heatmap colors
+### ------------------------------------------------------------
+
+heatmap_colors <- colorRampPalette(c("white", "#BBBBBB", "#888888", "#4D4D4D"))(200)
+
+```
+
+##############################################################
+# Data Prep
+##############################################################
+# Upload data and create phyloseqs
+
+Creates phyloseqs from 16S, ITS1, DNA viromes, RNA viromes
+
+```{r}
+##################################################################################################
+### DNA Viromes
+
+dnavir_otu <- read.csv(paste0(workdir,"./viromes/230427_covtab_norm.csv"))
+
+dnavir_meta <- read.csv(paste0(workdir,"./viromes/220119_metadata.csv"))
+
+## Check for metadata correctness
+
+dnavir_meta_fix <- dnavir_meta %>% select(-sample, -soil_moisture_perc.1)
+
+# save the correct metadata file 05/29/2024
+write.csv(dnavir_meta_fix, paste0(workdir, "viromes/240529_metadata_LJ.csv"))
+
+# OTU
+str(dnavir_otu)
+rownames(dnavir_otu) <- dnavir_otu$Contig
+dnavir_otu <- dnavir_otu[,!(names(dnavir_otu) == "Contig")]
+dim(dnavir_otu)
+
+## Metadata file
+rownames(dnavir_meta_fix) <- dnavir_meta_fix$Sample
+colnames(dnavir_meta_fix)[colnames(dnavir_meta_fix) == "Sample"] <- "SampleID"
+dim(dnavir_meta_fix)
+
+physeq_DV <- phyloseq(otu_table(dnavir_otu, taxa_are_rows = TRUE), 
+                     sample_data(dnavir_meta_fix))
+
+physeq_DV
+
+sort(phyloseq::sample_sums(physeq_DV))
+
+saveRDS(physeq_DV, paste0(workdir,"./source_data/physeq_objects/physeq_DV_normalized_DNAViruses_MAY2023"))
+
+###############################
+### 16S
+bacteria_otu <- read.csv(paste0(workdir,"amplicon/tomato_16S_norm.csv"))
+bacteria_tax <- read_csv(paste0(workdir,"amplicon/tax1_16s.csv")) %>% as.data.frame()
+
+bacteria_meta <- read.csv(paste0(workdir,"viromes/240529_metadata_LJ.csv"))
+
+# OTU
+str(bacteria_otu)
+rownames(bacteria_otu) <- bacteria_otu$ASV
+bacteria_otu <- bacteria_otu[,!(names(bacteria_otu) == "ASV")]
+dim(bacteria_otu)
+
+## Taxonomy file
+str(bacteria_tax)
+rownames(bacteria_tax) <- bacteria_tax$OTU_ID
+bacteria_tax <- bacteria_tax[,!(names(bacteria_tax) == "OTU_ID")]
+bacteria_tax.m <- as.matrix(bacteria_tax)
+
+## Metadata file
+rownames(bacteria_meta) <- bacteria_meta$X
+bacteria_meta <- bacteria_meta[,-1]
+dim(bacteria_meta)
+
+physeq_B <- phyloseq(otu_table(bacteria_otu, taxa_are_rows = TRUE), 
+                     tax_table(bacteria_tax.m), 
+                     sample_data(bacteria_meta))
+
+physeq_B
+
+physeq_B3 = subset_taxa(physeq_B, !Family %in% c("Chloroplast","Mitochondria"))
+physeq_B
+physeq_B3
+
+physeq_B3 = subset_taxa(physeq_B3, !Class %in% c("Chloroplast","Mitochondria"))
+physeq_B
+physeq_B3
+
+physeq_B3 = subset_taxa(physeq_B3, !Order %in% c("Chloroplast","Mitochondria"))
+physeq_B
+physeq_B3
+
+physeq_antiB3 = subset_taxa(physeq_B, Family %in% c("Chloroplast","Mitochondria") | Class %in% c("Chloroplast") | Order %in% c("Chloroplast"))
+
+physeq_B3
+physeq_antiB3
+
+count_mitochondria <- sort(phyloseq::sample_sums(physeq_antiB3)) %>% sum()
+count_NOmitochondria <- sort(phyloseq::sample_sums(physeq_B3)) %>% sum()
+
+(count_mitochondria*100)/count_NOmitochondria
+
+#### This above is inacurate as it is run on the normalized data
+# We need the raw table
+tomato_16S_raw <- read_csv("Library/CloudStorage/OneDrive-UniversityofCalifornia,Davis/Projects/Tomato_rhizosphere_Ani/Analysis/amplicon/tomato_16S_raw.csv")
+
+# Create vector vector_m_ch, from physeq_antiB3 that contains mitochondria and chloroplasts
+vector_m_ch <- physeq_antiB3@tax_table %>% rownames() 
+
+# Filter the rows where the first column matches vector_m_ch
+otu_16S_raw_m_ch_filtr <- tomato_16S_raw %>% 
+  filter(tomato_16S_raw[[1]] %in% vector_m_ch)
+
+dim(otu_16S_raw_m_ch_filtr)
+
+# Sum the reads for the filtered table (excluding the first column)
+sum_filtered <- rowSums(otu_16S_raw_m_ch_filtr[ , -1]) %>% sum()
+
+# Sum the reads for the whole table (excluding the first column)
+sum_total <- rowSums(tomato_16S_raw[ , -1]) %>% sum()
+
+# Calculate the percentage
+percentage <- (sum_filtered / sum_total) * 100
+
+# Output the result
+percentage
+
+physeq_B # 2049
+physeq_B3 # 1979 taxa
+
+sort(phyloseq::sample_sums(physeq_B3))
+
+saveRDS(physeq_B, paste0(workdir,"./source_data/physeq_objects/physeq_B_normalized_withChlMit_MAY2023"))
+
+saveRDS(physeq_B3, paste0(workdir,"./source_data/physeq_objects/physeq_B_normalized_noChlor_noMitoch_OCT2024"))
+
+########################################################################
+### ITS1
+fungi_otu <- read.csv(paste0(workdir,"amplicon/tomato_ITS_norm.csv"))
+fungi_tax <- read_csv(paste0(workdir,"amplicon/tax1_its.csv")) %>% as.data.frame()
+fungi_meta <- read.csv(paste0(workdir,"viromes/240529_metadata_LJ.csv"))
+
+# OTU
+str(fungi_otu)
+rownames(fungi_otu) <- fungi_otu$ASV
+fungi_otu <- fungi_otu[,!(names(fungi_otu) == "ASV")]
+dim(fungi_otu)
+
+## Taxonomy file
+str(fungi_tax)
+rownames(fungi_tax) <- fungi_tax$OTU_ID
+fungi_tax <- fungi_tax[,!(names(fungi_tax) == "OTU_ID")]
+fungi_tax.m <- as.matrix(fungi_tax)
+
+## Metadata file
+rownames(fungi_meta) <- fungi_meta$SampleID
+fungi_meta <- fungi_meta[,-1]
+dim(fungi_meta)
+
+physeq_F <- phyloseq(otu_table(fungi_otu, taxa_are_rows = TRUE), 
+                     tax_table(fungi_tax.m), 
+                     sample_data(fungi_meta))
+
+physeq_F
+
+# Taxonomic filtering
+physeq_F1 <- subset_taxa(physeq_F, Kingdom =="k__Fungi")
+
+physeq_F
+physeq_F1
+
+sort(phyloseq::sample_sums(physeq_F1))
+
+saveRDS(physeq_F1, paste0(workdir,"./source_data/physeq_objects/physeq_F_normalized_Fungi_MAY2023"))
+
+##################################################################################################
+### RNA Viruses
+
+rnavir_otu <- read.csv(paste0(workdir,"RNA/RNA_covtab_norm.csv"))
+rnavir_meta <- read.csv(paste0(workdir,"viromes/220119_metadata.csv"))
+
+## These files needs a bit of work before they can be input in phyloseq
+# OTU
+str(rnavir_otu)
+rownames(rnavir_otu) <- rnavir_otu$Contig
+rnavir_otu <- rnavir_otu[,!(names(rnavir_otu) == "Contig")]
+dim(rnavir_otu)
+
+## Metadata file
+rownames(rnavir_meta) <- rnavir_meta$Sample
+colnames(rnavir_meta)[colnames(rnavir_meta) == "Sample"] <- "SampleID"
+dim(rnavir_meta)
+
+rnavir_meta2 <- rnavir_meta %>% mutate(rhizo_rhizo_t = if_else(bulk_rhizo_t == "rhizo", paste0(bulk_rhizo, "_" , Timepoint, sep = " "), bulk_rhizo_t))
+
+physeq_RV <- phyloseq(otu_table(rnavir_otu, taxa_are_rows = TRUE), 
+                      sample_data(rnavir_meta2))
+
+physeq_RV
+
+#########
+sort(phyloseq::sample_sums(physeq_RV))
+
+saveRDS(physeq_RV, paste0(workdir,"./source_data/physeq_objects/physeq_RV_normalized_RNAViruses_MAY2023"))
+
+```
+
+
+```{r}
+# Raw phyloseqs
+
+physeq_B <- readRDS(paste0(workdir,"./source_data/physeq_objects/physeq_B_normalized_noChlor_noMitoch_OCT2024"))
+physeq_F1 <- readRDS(paste0(workdir, "source_data/physeq_objects/physeq_F_normalized_Fungi_MAY2023"))
+
+physeq_DV <- readRDS(paste0(workdir, "source_data/physeq_objects/physeq_DV_normalized_DNAViruses_MAY2023"))
+physeq_RV <- readRDS(paste0(workdir, "source_data/physeq_objects/physeq_RV_normalized_RNAViruses_MAY2023"))
+
+# Hellinger trasnformed physeqs
+
+ps_B_tr <- microbiome::transform(physeq_B, 'hellinger')
+ps_F_tr <- microbiome::transform(physeq_F1, 'hellinger')
+
+ps_DV_tr <- microbiome::transform(physeq_DV, 'hellinger')
+ps_RV_tr <- microbiome::transform(physeq_RV, 'hellinger')
+
+
+saveRDS(ps_B_tr, paste0(workdir,"./source_data/physeq_objects/physeq_B_normalized_noChlor_noMitoch_OCT2024_hellinger"))
+
+saveRDS(ps_F_tr, paste0(workdir,"./source_data/physeq_objects/physeq_F_normalized_Fungi_MAY2023_hellinger"))
+
+saveRDS(ps_DV_tr, paste0(workdir,"./source_data/physeq_objects/physeq_DV_normalized_DNAViruses_MAY2023_hellinger"))
+saveRDS(ps_RV_tr, paste0(workdir,"./source_data/physeq_objects/physeq_RV_normalized_RNAViruses_MAY2023_hellinger"))
+
+# Read Hellinger transformed physeqs only
+ps_B_tr <- readRDS(paste0(workdir, "source_data/physeq_objects/physeq_B_normalized_noChlor_noMitoch_OCT2024_hellinger"))
+ps_F_tr <- readRDS(paste0(workdir, "source_data/physeq_objects/physeq_F_normalized_Fungi_MAY2023_hellinger"))
+
+ps_DV_tr <- readRDS(paste0(workdir, "source_data/physeq_objects/physeq_DV_normalized_DNAViruses_MAY2023_hellinger"))
+ps_RV_tr <- readRDS(paste0(workdir, "source_data/physeq_objects/physeq_RV_normalized_RNAViruses_MAY2023_hellinger"))
+
+```
+
+
+##############################################################
+# Analysis
+##############################################################
+
+
+# Figure 1
+
+## Panel A
+
+This is a donut plot showing the number of vOTUs from different ecosystems in PIGEON, without vOTUs from Russel Range.
+
+```{r}
+library(readr)
+df_PIGEON_donut_plot <- read_csv("Library/CloudStorage/OneDrive-UniversityofCalifornia,Davis/Projects/Tomato_rhizosphere_Ani/Analysis/source_data/pigeon/df_PIGEON_donut_plot.csv")
+
+
+############
+habitat_colors_donut <- c(
+  "Marine" = "#08306B",                        # dark blue
+  "Freshwater" = "#6BAED6",                    # light blue
+  "Non-marine Saline and Alkaline" = "#41B6C4", # teal
+  "Rhizosphere Soil" = "#3C8E3A",               # rhizo green (consistent!)
+  "Peat soil" = "#4B5D2A",                      # peat olive
+  "Natural Soil" = "#C7A76C",                   # light brown
+  "Agricultural" = "#8C2D19",                   # reddish brown
+  "Digestive" = "#9E9AC8",                      # muted purple
+  "Other" = "#BDBDBD"                           # grey
+)
+
+
+library(tidyverse)
+
+Fig1_A <- df_PIGEON_donut_plot %>%
+  arrange(desc(percentage)) %>%
+  mutate(
+    Habitat_type = factor(Habitat_type, levels = Habitat_type)
+  ) %>%
+  ggplot(aes(x = 2, y = percentage, fill = Habitat_type)) +
+  geom_col(color = "white", width = 1) +
+  coord_polar(theta = "y", start = pi / 2) +
+  xlim(0.5, 2.5) +
+  scale_fill_manual(values = habitat_colors_donut) +
+  theme_void() +
+  labs(fill = "Habitat type") + annotate(
+    "text",
+    x = 0,
+    y = 0,
+    label = scales::comma(sum(df_PIGEON_donut_plot$total_vOTUs)),
+    size = 5,
+    fontface = "bold"
+  )+ geom_text(
+  aes(label = paste0(sprintf("%.1f", percentage), "%")),
+  position = position_stack(vjust = 0.5),
+  size = 8,
+  color = "white"
+)
+
+# Bigger legend text
+
+Fig1_A <- df_PIGEON_donut_plot %>%
+  arrange(desc(percentage)) %>%
+  mutate(
+    Habitat_type = factor(Habitat_type, levels = Habitat_type)
+  ) %>%
+  ggplot(aes(x = 2, y = percentage, fill = Habitat_type)) +
+  geom_col(color = "white", width = 1) +
+  coord_polar(theta = "y", start = pi / 2) +
+  xlim(0.5, 2.5) +
+  scale_fill_manual(values = habitat_colors_donut) +
+  theme_void() +
+  labs(fill = "Habitat type") +
+  geom_text(
+    aes(label = paste0(sprintf("%.1f", percentage), "%")),
+    position = position_stack(vjust = 0.5),
+    size = 8,
+    color = "white"
+  ) +
+  theme(
+    legend.text  = element_text(size = 18),
+    legend.title = element_text(size = 19)
+  )
+
+
+Fig1_A
+
+ggsave(
+  Fig1_A,
+  filename = paste0(workdir,"/plots/pigeon/Fig1_A_",Sys.Date(), ".pdf"),
+  width = 10, height = 6, dpi = 600,
+)
+
+```
+
+
+## Panel B
+
+Map
+
+```{r}
+
+# Load coordinates data for PIGEON mapping
+library(readxl)
+coordinates_pigeon <- read_excel("Library/CloudStorage/OneDrive-UniversityofCalifornia,Davis/Projects/Tomato_rhizosphere_Ani/Analysis/source_data/pigeon/df_PIGEON_mapping_coordinates.xlsx")
+
+# Filter out all Russel Ranch vOTUs and no coordinates reads.
+
+library(dplyr)
+
+df_map_clean <- coordinates_pigeon_clean %>%
+  # convert lat/lon to numeric (non-convertible -> NA)
+  mutate(
+    lat = as.numeric(lat),
+    lon = as.numeric(lon)
+  ) %>%
+  # filter out bad rows
+  filter(
+    !is.na(lat),
+    !is.na(lon),
+    RR != "yes",
+    !is.na(location),
+    !location %in% c("no", "no location"),
+    !str_detect(location, regex("multiple locations|not sure", ignore_case = TRUE))
+  )
+
+dim(coordinates_pigeon_clean)
+dim(df_map_clean)
+
+df_map <- df_map_clean %>%
+  group_by(location, habitat_type, lat, lon) %>%
+  summarise(
+    n_vOTUs = sum(count, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+###########################
+library(ggplot2)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(sf)
+
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+# make sure df_map is numeric and habitat_type is factor
+df_map <- df_map %>%
+  mutate(
+    lat = as.numeric(lat),
+    lon = as.numeric(lon),
+    habitat_type = factor(habitat_type)
+  )
+
+df_map <- df_map %>%
+  mutate(
+    habitat_type = case_when(
+      habitat_type %in% c("rhizosphere_soil") ~ "Rhizosphere Soil",
+      habitat_type %in% c("agricultural_soil") ~ "Agricultural",
+      habitat_type %in% c("natural soil", "natural_soil") ~ "Natural Soil",
+      habitat_type %in% c("peat") ~ "Peat soil",
+      habitat_type %in% c("aquatic") ~ "Freshwater", # or Marine if appropriate
+      habitat_type %in% c("other") ~ "Other",
+      TRUE ~ habitat_type  # leave others as-is
+    )
+  )
+
+df_map$habitat_type <- factor(df_map$habitat_type,
+                              levels = names(habitat_colors_donut))
+
+df_map_world <- df_map %>%
+  filter(!(lat >= 32 & lat <= 42 & lon >= -125 & lon <= -114))
+
+
+# World map
+Fig1_B_W <- ggplot() +
+  geom_sf(data = world, fill = "grey95", color = "grey70", linewidth = 0.2) +
+  geom_point(
+    data = df_map_world,
+    aes(x = lon, y = lat, size = n_vOTUs, fill = habitat_type),
+    shape = 21,
+    color = "black",
+    alpha = 0.75
+  ) +
+  # size scaling: sqrt transform so small counts are bigger visually
+  scale_size_area(
+    max_size = 8,
+    name = "Number of vOTUs",
+    breaks = c(1, 2, 5, 10),  # optional nice legend
+    trans = "sqrt"
+  ) +
+  scale_fill_manual(values = habitat_colors_donut) +
+  coord_sf(expand = FALSE) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    legend.position = "right",
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
+  ) +
+  labs(
+    x = NULL,
+    y = NULL,
+    fill = "Sample type"
+  )
+
+# Or as PDF for vector graphics
+ggsave(
+  Fig1_B_W,
+  filename = paste0(workdir,"/plots/pigeon/Fig1_B_W_PIGEON_mapping_world_vOTU_map", Sys.Date(), ".pdf"),
+  width = 7, height = 4, dpi = 600,
+)
+
+```
+
+California only
+
+```{r}
+########## California only
+# Filter to California only
+
+df_map_CA <- df_map %>%
+  filter((lat >= 32 & lat <= 42 & lon >= -125 & lon <= -114))
+
+#########
+
+library(tidyverse)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(sf)
+
+# Load US states
+us_states <- ne_states(country = "United States of America",
+                       returnclass = "sf")
+
+# Extract California
+california <- us_states %>%
+  filter(name == "California")
+
+df_CA <- df %>%
+  filter(country == "USA",
+         lat > 32, lat < 42,
+         lon > -125, lon < -114)
+
+Fig1_B_CA <- ggplot() +
+  geom_sf(
+    data = california,
+    fill = "grey95",
+    color = "black",
+    linewidth = 0.4
+  ) +
+  geom_point(
+    data = df_map_CA,
+    aes(x = lon, y = lat, size = n_vOTUs, fill = habitat_type),
+    shape = 21,
+    color = "black",
+    alpha = 0.6,
+    position = position_jitter(width = 0.08, height = 0.08)
+  ) +
+  scale_size_area(
+    max_size = 20,
+    name = "Number of vOTUs",
+    trans = "sqrt",
+    breaks = c(1, 10, 100, 1000)
+  ) +
+  scale_fill_manual(values = habitat_colors_donut) +
+  coord_sf(
+    xlim = st_bbox(california)[c("xmin", "xmax")],
+    ylim = st_bbox(california)[c("ymin", "ymax")],
+    expand = FALSE
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    legend.position = "right"
+  ) +
+  labs(
+    x = NULL,
+    y = NULL,
+    fill = "Sample type",
+    title = "California vOTU Sampling Sites"
+  )
+
+
+ggsave(
+  Fig1_B_CA,
+  filename = paste0(workdir,"/plots/pigeon/Fig1_B_CA_PIGEON_mapping_CA_vOTU_map_", Sys.Date(), ".pdf"),
+  width = 7, height = 9, dpi = 600,
+)
+
+
+##### Modification
+
+df_map_CA_modified <- df_map_CA %>%
+  mutate(vOTU_bin = cut(
+    n_vOTUs,
+    breaks = c(0, 10, 50, 100, 500, 1000, Inf),
+    labels = c("<10", "10–50", "50–100", "100–500", "500–1000", ">1000"),
+    include.lowest = TRUE,
+    right = TRUE
+  ))
+
+# force levels order to match numeric progression
+df_map_CA_modified$vOTU_bin <- factor(
+  df_map_CA_modified$vOTU_bin,
+  levels = c("<10", "10–50", "50–100", "100–500", "500–1000", ">1000")
+)
+
+size_values <- c(3, 4, 5, 7, 10, 14)
+names(size_values) <- levels(df_map_CA_modified$vOTU_bin)
+
+Fig1_B_CA_modified <- ggplot() +
+  geom_sf(data = california, fill = "grey95", color = "black") +
+  geom_point(
+    data = df_map_CA_modified,
+    aes(x = lon, y = lat, size = vOTU_bin, fill = habitat_type),
+    shape = 21,
+    color = "black",
+    alpha = 0.8,
+    position = position_jitter(width = 0.1, height = 0.1)
+  ) +
+  scale_size_manual(values = size_values, name = "Number of vOTUs") +
+  scale_fill_manual(values = habitat_colors_donut) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    legend.position = "right"
+  ) +
+  labs(
+    x = NULL,
+    y = NULL,
+    fill = "Sample type",
+    title = "California vOTU Sampling Sites"
+  )
+
+
+ggsave(
+  Fig1_B_CA_modified,
+  filename = paste0(workdir,"/plots/pigeon/Fig1_B_CA_modified_PIGEON_mapping_CA_vOTU_map_", Sys.Date(), ".pdf"),
+  width = 10, height = 15, dpi = 600,
+)
+
+```
+
+
+## Panel C
+
+```{r}
+library(readr)
+df_PIGEON_mapping_donut_plot <- read_csv("Library/CloudStorage/OneDrive-UniversityofCalifornia,Davis/Projects/Tomato_rhizosphere_Ani/Analysis/source_data/pigeon/df_PIGEON_mapping_donut_plot.csv")
+
+############
+habitat_colors_donut <- c(
+  "Marine" = "#08306B",                        # dark blue
+  "Freshwater" = "#6BAED6",                    # light blue
+  "Non-marine Saline and Alkaline" = "#41B6C4", # teal
+  "Rhizosphere Soil" = "#3C8E3A",               # rhizo green (consistent!)
+  "Peat soil" = "#4B5D2A",                      # peat olive
+  "Natural Soil" = "#C7A76C",                   # light brown
+  "Agricultural" = "#8C2D19",                   # reddish brown
+  "Digestive" = "#9E9AC8",                      # muted purple
+  "Other" = "#BDBDBD"                           # grey
+)
+
+
+library(tidyverse)
+Fig1_C <- df_PIGEON_mapping_donut_plot %>%
+  filter(percentage > 0) %>% 
+  arrange(desc(percentage)) %>%
+  mutate(
+    Habitat_type = factor(Habitat_type, levels = Habitat_type)
+  ) %>%
+  ggplot(aes(x = 2, y = percentage, fill = Habitat_type)) +
+  geom_col(color = "white", width = 1) +
+  coord_polar(theta = "y", start = pi / 2) +
+  xlim(0.5, 2.5) +
+  scale_fill_manual(values = habitat_colors_donut) +
+  theme_void() +
+  labs(fill = "Habitat type") + annotate(
+    "text",
+    x = 0,
+    y = 0,
+    label = scales::comma(sum(df_PIGEON_donut_plot$total_vOTUs)),
+    size = 5,
+    fontface = "bold"
+  )+ geom_text(
+    aes(label = paste0(sprintf("%.1f", percentage), "%")),
+    position = position_stack(vjust = 0.5),
+    size = 8,
+    color = "white"
+  )
+
+Fig1_C <- df_PIGEON_mapping_donut_plot %>%
+  filter(percentage > 0) %>%
+  arrange(desc(percentage)) %>%
+  mutate(
+    Habitat_type = factor(Habitat_type, levels = Habitat_type)
+  ) %>%
+  ggplot(aes(x = 2, y = percentage, fill = Habitat_type)) +
+  geom_col(color = "white", width = 1) +
+  coord_polar(theta = "y", start = pi / 2) +
+  xlim(0.5, 2.5) +
+  scale_fill_manual(values = habitat_colors_donut) +
+  theme_void() +
+  labs(fill = "Habitat type") +
+  geom_text(
+    aes(label = paste0(sprintf("%.1f", percentage), "%")),
+    position = position_stack(vjust = 0.5),
+    size = 8,
+    color = "white"
+  ) +
+  theme(
+    legend.text  = element_text(size = 18),
+    legend.title = element_text(size = 19)
+  )
+
+
+Fig1_C
+
+ggsave(
+  Fig1_C,
+  filename = paste0(workdir,"/plots/pigeon/Fig1_C_",Sys.Date(), ".pdf"),
+  width = 10, height = 6, dpi = 600,
+)
+
+
+# Merged Fig1C data
+
+df_PIGEON_mapping_donut_merged <- df_PIGEON_mapping_donut_plot %>%
+  mutate(
+    Habitat_type = ifelse(percentage < 2,
+                          "Other",
+                          Habitat_type)
+  ) %>%
+  group_by(Habitat_type) %>%
+  summarise(
+    total_vOTUs = sum(total_vOTUs),
+    percentage  = sum(percentage),
+    .groups = "drop"
+  )
+
+
+Fig1_C_merged <- df_PIGEON_mapping_donut_merged %>%
+  arrange(desc(percentage)) %>%
+  mutate(
+    Habitat_type = factor(Habitat_type, levels = Habitat_type)
+  ) %>%
+  ggplot(aes(x = 2, y = percentage, fill = Habitat_type)) +
+  geom_col(color = "white", width = 1) +
+  coord_polar(theta = "y", start = pi / 2) +
+  xlim(0.5, 2.5) +
+  scale_fill_manual(values = habitat_colors_donut) +
+  theme_void() +
+  labs(fill = "Habitat type") +
+  geom_text(
+    aes(label = paste0(sprintf("%.1f", percentage), "%")),
+    position = position_stack(vjust = 0.5),
+    size = 8,
+    color = "white"
+  ) +
+  theme(
+    legend.text  = element_text(size = 18),
+    legend.title = element_text(size = 19)
+  )
+
+
+Fig1_C_merged
+
+ggsave(
+  Fig1_C_merged,
+  filename = paste0(workdir,"/plots/pigeon/Fig1_C_merged_",Sys.Date(), ".pdf"),
+  width = 10, height = 6, dpi = 600,
+)
+```
+
+## Combined Figure 1
+
+```{r}
+#Combine the two maps
+
+# Combine with inset
+combined_Fig1_maps <- ggdraw() +
+  draw_plot(Fig1_B_CA_modified + theme(legend.position = "none")) +
+  draw_plot(Fig1_B_W + theme(legend.position = "none"), x = 0.40, y = 0.5, width = 0.6, height = 0.6)
+
+```
+
+```{r}
+
+library(patchwork)
+
+# Remove legends from donuts
+Fig1_A_no_legend <- Fig1_A + theme(legend.position = "none")
+Fig1_C_no_legend <- Fig1_C_merged + theme(legend.position = "none")
+
+# Stack the donuts vertically
+donuts_stack <- Fig1_A_no_legend / Fig1_C_no_legend 
+
+combined_Fig1_maps_trimmed <- combined_Fig1_maps +
+  coord_sf(expand = FALSE) +
+  theme(legend.position = "none")  # already removing legend
+
+# Combine with California map side by side
+Figure_1_combined <- donuts_stack | combined_Fig1_maps_trimmed +
+  plot_annotation(tag_levels = 'A')
+
+Figure_1_combined
+
+
+ggsave(paste0(workdir, "plots/Manuscript_figures/Figure_1_combined_2_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Figure_1_combined, 
+       width = 15, height = 10, dpi = 600)
+
+```
+
+
+# Figure 2
+
+## Panel A
+
+```{r}
+###########################################################################################
+# transform the data
+ps_DV_tr <- microbiome::transform(physeq_DV, 'hellinger')
+
+# PCoA - with Bray Curtis
+pcoa_DV_tr <- ordinate(ps_DV_tr, "PCoA", distance = "bray", binary = F)
+
+# Extract PCoA results
+pcoa_result_DV_tr <- as.data.frame(pcoa_DV_tr$vectors)
+
+# Extract sample data for temporal information
+temporal_data_DV_tr <- as.data.frame(sample_data(ps_DV_tr))
+
+# Combine data for plotting
+combined_data_DV_tr <- cbind(temporal_data_DV_tr, pcoa_result_DV_tr)
+
+# Calculate centroids for each group and timepoint
+centroid_data_DV_tr <- combined_data_DV_tr %>%
+  group_by(bulk_rhizo, Timepoint) %>%
+  summarize(Centroid_X = mean(Axis.1), Centroid_Y = mean(Axis.2)) %>%
+  ungroup()
+
+# Convert Timepoint to factor with the desired order
+combined_data_DV_tr$Timepoint <- factor(combined_data_DV_tr$Timepoint, levels = c("T0", "T1", "T2", "T3"))
+
+# Arrange data for plotting
+arranged_data_DV_tr <- centroid_data_DV_tr %>%
+  arrange(bulk_rhizo, Timepoint)
+
+sample_data(ps_DV_tr)$bulk_rhizo_t_2 <-  paste0(sample_data(ps_DV_tr)$bulk_rhizo, 
+                                                "_", sample_data(ps_DV_tr)$Timepoint)
+
+# Panel A
+Fig2_A <- ggplot(combined_data_DV_tr, aes(Axis.1, Axis.2)) +
+  geom_point(aes(shape = bulk_rhizo, fill = bulk_rhizo_t_2), size = 6, color = "black") +
+  geom_convexhull(aes(group = bulk_rhizo, fill = bulk_rhizo, color = bulk_rhizo), alpha = 0.1) +
+  scale_shape_manual(values = c(21, 24)) +
+  scale_fill_manual(values = c(compartment_colors, time_colors)) +
+  scale_color_manual(values = c(compartment_colors)) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_DV_tr$values$Eigenvalues[1] / sum(pcoa_DV_tr$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_DV_tr$values$Eigenvalues[2] / sum(pcoa_DV_tr$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_soil()
+
+ggsave(paste0(workdir, "plots/pcoa/trajectory_pcoa_DV_tr_DIFF_colors_hull_NO_LEGEND_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig2_A,
+       width = 7, height = 6, dpi = 600)
+
+
+### Legend only
+
+Fig2_legend <- plot_ordination(ps_DV_tr, pcoa_DV_tr, type = "samples", color = "bulk_rhizo_t_2", shape = "bulk_rhizo") + 
+  geom_point(size = 6, alpha=1) +
+  scale_color_manual(
+    name = 'Time', 
+    values = time_colors
+  ) +
+  geom_convexhull(aes(colour=as.character(bulk_rhizo)), alpha = 0.05) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_DV_tr$values$Eigenvalues[1] / sum(pcoa_DV_tr$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_DV_tr$values$Eigenvalues[2] / sum(pcoa_DV_tr$values$Eigenvalues) * 100, 2), "%)")) + theme_bw()
+
+ggsave(paste0(workdir, "plots/pcoa/Fig2_legend_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig2_legend,
+       width = 7, height = 6, dpi = 600)
+
+```
+
+## Panel B
+
+####### Version 3
+
+```{r}
+
+# PCoA - with Bray Curtis
+
+### T1
+ps_DV_tr_T1 <- ps_filter(ps_DV_tr, Timepoint == "T1")
+
+pcoa_DV_tr_T1 <- ordinate(ps_DV_tr_T1, "PCoA", distance = "bray", binary = F)
+
+# Extract PCoA results
+pcoa_result_DV_tr_T1 <- as.data.frame(pcoa_DV_tr_T1$vectors)
+
+# Extract sample data for temporal information
+temporal_data_DV_tr_T1 <- as.data.frame(sample_data(ps_DV_tr_T1))
+
+# Combine data for plotting
+combined_data_DV_tr_T1 <- cbind(temporal_data_DV_tr_T1, pcoa_result_DV_tr_T1)
+
+# Calculate centroids for each group and timepoint
+centroid_data_DV_tr_T1 <- combined_data_DV_tr_T1 %>%
+  group_by(bulk_rhizo, Timepoint) %>%
+  summarize(Centroid_X = mean(Axis.1), Centroid_Y = mean(Axis.2)) %>%
+  ungroup()
+
+# Convert Timepoint to factor with the desired order
+combined_data_DV_tr_T1$Timepoint <- factor(combined_data_DV_tr_T1$Timepoint, levels = c("T0", "T1", "T2", "T3"))
+
+# Arrange data for plotting
+arranged_data_DV_tr_T1 <- centroid_data_DV_tr_T1 %>%
+  arrange(bulk_rhizo, Timepoint)
+
+sample_data(ps_DV_tr_T1)$bulk_rhizo_t_2 <-  paste0(sample_data(ps_DV_tr_T1)$bulk_rhizo, 
+                                                "_", sample_data(ps_DV_tr_T1)$Timepoint)
+
+# Panel A
+
+Fig2_B_T1_3 <- ggplot(combined_data_DV_tr_T1, aes(Axis.1, Axis.2)) +
+  geom_point(aes(shape = bulk_rhizo, fill = bulk_rhizo), size = 6, color = "black") +
+  geom_convexhull(aes(group = bulk_rhizo, fill = bulk_rhizo, color = bulk_rhizo), alpha = 0.1) +
+  scale_shape_manual(values = c(21, 24)) +
+  scale_fill_manual(values = c(compartment_colors, time_colors)) +
+  scale_color_manual(values = c(compartment_colors)) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_DV_tr_T1$values$Eigenvalues[1] / sum(pcoa_DV_tr_T1$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_DV_tr_T1$values$Eigenvalues[2] / sum(pcoa_DV_tr_T1$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_soil()
+
+ggsave(paste0(workdir, "plots/pcoa/timepoints_pcoa_DV_tr_Fig2_B_T1_3_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig2_B_T1_3,
+       width = 7, height = 6, dpi = 600)
+
+ggsave(paste0(workdir, "plots/pcoa/Fig2_B_T1_3_DV_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig2_B_T1_3,
+       width = 4, height = 3, dpi = 600)
+
+### T2
+
+ps_DV_tr_T2 <- ps_filter(ps_DV_tr, Timepoint == "T2")
+
+pcoa_DV_tr_T2 <- ordinate(ps_DV_tr_T2, "PCoA", distance = "bray", binary = F)
+
+# Extract PCoA results
+pcoa_result_DV_tr_T2 <- as.data.frame(pcoa_DV_tr_T2$vectors)
+
+# Extract sample data for temporal information
+temporal_data_DV_tr_T2 <- as.data.frame(sample_data(ps_DV_tr_T2))
+
+# Combine data for plotting
+combined_data_DV_tr_T2 <- cbind(temporal_data_DV_tr_T2, pcoa_result_DV_tr_T2)
+
+# Calculate centroids for each group and timepoint
+centroid_data_DV_tr_T2 <- combined_data_DV_tr_T2 %>%
+  group_by(bulk_rhizo, Timepoint) %>%
+  summarize(Centroid_X = mean(Axis.1), Centroid_Y = mean(Axis.2)) %>%
+  ungroup()
+
+# Convert Timepoint to factor with the desired order
+#combined_data_DV_tr_T2$Timepoint <- factor(combined_data_DV_tr_T2$Timepoint, levels = c("T0", "T2", "T2", "T3"))
+
+# Arrange data for plotting
+arranged_data_DV_tr_T2 <- centroid_data_DV_tr_T2 %>%
+  arrange(bulk_rhizo, Timepoint)
+
+sample_data(ps_DV_tr_T2)$bulk_rhizo_t_2 <-  paste0(sample_data(ps_DV_tr_T2)$bulk_rhizo, 
+                                                   "_", sample_data(ps_DV_tr_T2)$Timepoint)
+
+# Panel A
+Fig2_B_T2_3 <- ggplot(combined_data_DV_tr_T2, aes(Axis.1, Axis.2)) +
+  geom_point(aes(shape = bulk_rhizo, fill = bulk_rhizo), size = 6, color = "black") +
+  geom_convexhull(aes(group = bulk_rhizo, fill = bulk_rhizo, color = bulk_rhizo), alpha = 0.1) +
+  scale_shape_manual(values = c(21, 24)) +
+  scale_fill_manual(values = c(compartment_colors, time_colors)) +
+  scale_color_manual(values = c(compartment_colors)) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_DV_tr_T2$values$Eigenvalues[1] / sum(pcoa_DV_tr_T2$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_DV_tr_T2$values$Eigenvalues[2] / sum(pcoa_DV_tr_T2$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_soil()
+
+ggsave(paste0(workdir, "plots/pcoa/timepoints_pcoa_DV_tr_Fig2_B_T2_3_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig2_B_T2_3,
+       width = 7, height = 6, dpi = 600)
+
+ggsave(paste0(workdir, "plots/pcoa/Fig2_B_T2_3_DV_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig2_B_T2_3,
+       width = 4, height = 3, dpi = 600)
+
+### T3
+
+ps_DV_tr_T3 <- ps_filter(ps_DV_tr, Timepoint == "T3")
+
+pcoa_DV_tr_T3 <- ordinate(ps_DV_tr_T3, "PCoA", distance = "bray", binary = F)
+
+# Extract PCoA results
+pcoa_result_DV_tr_T3 <- as.data.frame(pcoa_DV_tr_T3$vectors)
+
+# Extract sample data for temporal information
+temporal_data_DV_tr_T3 <- as.data.frame(sample_data(ps_DV_tr_T3))
+
+# Combine data for plotting
+combined_data_DV_tr_T3 <- cbind(temporal_data_DV_tr_T3, pcoa_result_DV_tr_T3)
+
+# Calculate centroids for each group and timepoint
+centroid_data_DV_tr_T3 <- combined_data_DV_tr_T3 %>%
+  group_by(bulk_rhizo, Timepoint) %>%
+  summarize(Centroid_X = mean(Axis.1), Centroid_Y = mean(Axis.2)) %>%
+  ungroup()
+
+# Convert Timepoint to factor with the desired order
+#combined_data_DV_tr_T3$Timepoint <- factor(combined_data_DV_tr_T3$Timepoint, levels = c("T0", "T3", "T3", "T3"))
+
+# Arrange data for plotting
+arranged_data_DV_tr_T3 <- centroid_data_DV_tr_T3 %>%
+  arrange(bulk_rhizo, Timepoint)
+
+sample_data(ps_DV_tr_T3)$bulk_rhizo_t_2 <-  paste0(sample_data(ps_DV_tr_T3)$bulk_rhizo, 
+                                                   "_", sample_data(ps_DV_tr_T3)$Timepoint)
+
+# Panel A
+Fig2_B_T3_3 <- ggplot(combined_data_DV_tr_T3, aes(Axis.1, Axis.2)) +
+  geom_point(aes(shape = bulk_rhizo, fill = bulk_rhizo), size = 6, color = "black") +
+  geom_convexhull(aes(group = bulk_rhizo, fill = bulk_rhizo, color = bulk_rhizo), alpha = 0.1) +
+  scale_shape_manual(values = c(21, 24)) +
+  scale_fill_manual(values = c(compartment_colors, time_colors)) +
+  scale_color_manual(values = c(compartment_colors)) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_DV_tr_T3$values$Eigenvalues[1] / sum(pcoa_DV_tr_T3$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_DV_tr_T3$values$Eigenvalues[2] / sum(pcoa_DV_tr_T3$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_soil()
+
+ggsave(paste0(workdir, "plots/pcoa/timepoints_pcoa_DV_tr_Fig2_B_T3_3_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig2_B_T3_3,
+       width = 7, height = 6, dpi = 600)
+
+ggsave(paste0(workdir, "plots/pcoa/Fig2_B_T3_3_DV_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig2_B_T3_3,
+       width = 4, height = 3, dpi = 600)
+
+```
+
+
+```{r}
+#### T1
+# Subset to T1 only
+ps_DV_tr_T1 <- ps_filter(ps_DV_tr, Timepoint == "T1")
+
+# Split by compartment
+ps_DV_tr_T1_bulk  <- ps_filter(ps_DV_tr_T1, bulk_rhizo == "bulk")
+ps_DV_tr_T1_rhizo <- ps_filter(ps_DV_tr_T1, bulk_rhizo == "rhizo")
+
+# Extract taxa
+bulk_taxa_DV_T1 <- taxa_names(ps_DV_tr_T1_bulk)[taxa_sums(ps_DV_tr_T1_bulk) > 0]
+
+rhizo_taxa_DV_T1 <- taxa_names(ps_DV_tr_T1_rhizo)[taxa_sums(ps_DV_tr_T1_rhizo) > 0]
+
+# Prepare Eulerr
+
+euler_input_DV_T1 <- list(Bulk = bulk_taxa_DV_T1, 
+                          Rhizosphere = rhizo_taxa_DV_T1)
+
+# Plot
+
+euler_fit_DV_T1 <- euler(euler_input_DV_T1)
+
+
+Fig2_B_T1_3_eulerr <- plot(
+  euler_fit_DV_T1,
+  fills = c("#BA7F3A", "#6BBF59"),
+  edges = TRUE,
+  quantities = TRUE,
+  main = "T1"
+)
+
+ggsave(paste0(workdir, "plots/euler/Fig2_B_T1_3_eulerr_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig2_B_T1_3_eulerr,
+       width = 7, height = 6, dpi = 600)
+
+ggsave(paste0(workdir, "plots/euler/Fig2_B_T1_3_eulerr_DV_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig2_B_T1_3_eulerr,
+       width = 4, height = 3, dpi = 600)
+
+### T2
+
+# Subset to T2 only
+ps_DV_tr_T2 <- ps_filter(ps_DV_tr, Timepoint == "T2")
+
+# Split by compartment
+ps_DV_tr_T2_bulk  <- ps_filter(ps_DV_tr_T2, bulk_rhizo == "bulk")
+ps_DV_tr_T2_rhizo <- ps_filter(ps_DV_tr_T2, bulk_rhizo == "rhizo")
+
+# Extract taxa
+bulk_taxa_DV_T2 <- taxa_names(ps_DV_tr_T2_bulk)[taxa_sums(ps_DV_tr_T2_bulk) > 0]
+
+rhizo_taxa_DV_T2 <- taxa_names(ps_DV_tr_T2_rhizo)[taxa_sums(ps_DV_tr_T2_rhizo) > 0]
+
+# Prepare Eulerr
+
+euler_input_DV_T2 <- list(Bulk = bulk_taxa_DV_T2, 
+                          Rhizosphere = rhizo_taxa_DV_T2)
+
+
+# Plot
+
+euler_fit_DV_T2 <- euler(euler_input_DV_T2)
+
+
+Fig2_B_T2_3_eulerr <- plot(
+  euler_fit_DV_T2,
+  fills = c("#8F5A28", "#3C8E3A"),
+  edges = TRUE,
+  quantities = TRUE,
+  main = "T2"
+)
+
+ggsave(paste0(workdir, "plots/euler/Fig2_B_T2_3_eulerr_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig2_B_T2_3_eulerr,
+       width = 7, height = 6, dpi = 600)
+
+ggsave(paste0(workdir, "plots/euler/Fig2_B_T2_3_eulerr_DV_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig2_B_T2_3_eulerr,
+       width = 4, height = 3, dpi = 600)
+
+### T3
+
+# Subset to T3 only
+ps_DV_tr_T3 <- ps_filter(ps_DV_tr, Timepoint == "T3")
+
+# Split by compartment
+ps_DV_tr_T3_bulk  <- ps_filter(ps_DV_tr_T3, bulk_rhizo == "bulk")
+ps_DV_tr_T3_rhizo <- ps_filter(ps_DV_tr_T3, bulk_rhizo == "rhizo")
+
+# Extract taxa
+bulk_taxa_DV_T3 <- taxa_names(ps_DV_tr_T3_bulk)[taxa_sums(ps_DV_tr_T3_bulk) > 0]
+
+rhizo_taxa_DV_T3 <- taxa_names(ps_DV_tr_T3_rhizo)[taxa_sums(ps_DV_tr_T3_rhizo) > 0]
+
+# Prepare Eulerr
+
+euler_input_DV_T3 <- list(Bulk = bulk_taxa_DV_T3, 
+                    Rhizosphere = rhizo_taxa_DV_T3)
+
+
+# Plot
+
+euler_fit_DV_T3 <- euler(euler_input_DV_T3)
+
+
+Fig2_B_T3_3_eulerr <- plot(
+  euler_fit_DV_T3,
+  fills = c("#5E4224", "#1F5F2A"),
+  edges = TRUE,
+  quantities = TRUE,
+  main = "T3"
+)
+
+ggsave(paste0(workdir, "plots/euler/Fig2_B_T3_3_eulerr_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig2_B_T3_3_eulerr,
+       width = 7, height = 6, dpi = 600)
+
+ggsave(paste0(workdir, "plots/euler/Fig2_B_T3_3_eulerr_DV_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig2_B_T3_3_eulerr,
+       width = 4, height = 3, dpi = 600)
+
+```
+
+####### Version 2
+
+```{r}
+
+### Timepoint T1
+
+ps_T1 <- subset_samples(physeq_DV, Timepoint == "T1")
+ps_T1 <- prune_taxa(taxa_sums(ps_T1) > 0, ps_T1)
+
+ps_T1_tr <- microbiome::transform(ps_T1, "hellinger")
+
+pcoa_T1 <- ordinate(ps_T1_tr, "PCoA", distance = "bray", binary = FALSE)
+
+scores_T1 <- as.data.frame(pcoa_T1$vectors)
+meta_T1   <- as.data.frame(sample_data(ps_T1_tr))
+plot_T1   <- cbind(meta_T1, scores_T1)
+
+var1_T1 <- round(pcoa_T1$values$Eigenvalues[1] /
+                   sum(pcoa_T1$values$Eigenvalues) * 100, 2)
+var2_T1 <- round(pcoa_T1$values$Eigenvalues[2] /
+                   sum(pcoa_T1$values$Eigenvalues) * 100, 2)
+
+### Timepoint T2
+ps_T2 <- subset_samples(physeq_DV, Timepoint == "T2")
+ps_T2 <- prune_taxa(taxa_sums(ps_T2) > 0, ps_T2)
+
+ps_T2_tr <- microbiome::transform(ps_T2, "hellinger")
+
+pcoa_T2 <- ordinate(ps_T2_tr, "PCoA", distance = "bray", binary = FALSE)
+
+scores_T2 <- as.data.frame(pcoa_T2$vectors)
+meta_T2   <- as.data.frame(sample_data(ps_T2_tr))
+plot_T2   <- cbind(meta_T2, scores_T2)
+
+var1_T2 <- round(pcoa_T2$values$Eigenvalues[1] /
+                   sum(pcoa_T2$values$Eigenvalues) * 100, 2)
+var2_T2 <- round(pcoa_T2$values$Eigenvalues[2] /
+                   sum(pcoa_T2$values$Eigenvalues) * 100, 2)
+
+
+## Timepoint T3
+ps_T3 <- subset_samples(physeq_DV, Timepoint == "T3")
+ps_T3 <- prune_taxa(taxa_sums(ps_T3) > 0, ps_T3)
+
+ps_T3_tr <- microbiome::transform(ps_T3, "hellinger")
+
+pcoa_T3 <- ordinate(ps_T3_tr, "PCoA", distance = "bray", binary = FALSE)
+
+scores_T3 <- as.data.frame(pcoa_T3$vectors)
+meta_T3   <- as.data.frame(sample_data(ps_T3_tr))
+plot_T3   <- cbind(meta_T3, scores_T3)
+
+var1_T3 <- round(pcoa_T3$values$Eigenvalues[1] /
+                   sum(pcoa_T3$values$Eigenvalues) * 100, 2)
+var2_T3 <- round(pcoa_T3$values$Eigenvalues[2] /
+                   sum(pcoa_T3$values$Eigenvalues) * 100, 2)
+
+#############
+Fig2_B_T1 <- ggplot(plot_T1,
+                    aes(Axis.1, Axis.2,
+                        color = bulk_rhizo,
+                        shape = bulk_rhizo)) +
+  geom_point(size = 6) +
+  geom_convexhull(aes(fill = bulk_rhizo), alpha = 0.1) +
+  scale_color_manual(values = c('#BA7F3A', '#3C8E3A')) +
+  xlab(paste0("PCoA axis 1 (", var1_T1, "%)")) +
+  ylab(paste0("PCoA axis 2 (", var2_T1, "%)")) +
+  ggtitle("T1") +
+  theme_soil()
+
+Fig2_B_T1
+
+
+Fig2_B_T2 <- ggplot(plot_T2,
+                    aes(Axis.1, Axis.2,
+                        color = bulk_rhizo,
+                        shape = bulk_rhizo)) +
+  geom_point(size = 6) +
+  geom_convexhull(aes(fill = bulk_rhizo), alpha = 0.1) +
+  scale_color_manual(values = c('#BA7F3A', '#3C8E3A')) +
+  xlab(paste0("PCoA axis 1 (", var1_T2, "%)")) +
+  ylab(paste0("PCoA axis 2 (", var2_T2, "%)")) +
+  ggtitle("T2") +
+  theme_soil()
+
+Fig2_B_T2
+
+
+
+Fig2_B_T3 <- ggplot(plot_T3,
+                    aes(Axis.1, Axis.2,
+                        color = bulk_rhizo,
+                        shape = bulk_rhizo)) +
+  geom_point(size = 6) +
+  geom_convexhull(aes(fill = bulk_rhizo), alpha = 0.1) +
+  scale_color_manual(values = c('#BA7F3A', '#3C8E3A')) +
+  xlab(paste0("PCoA axis 1 (", var1_T3, "%)")) +
+  ylab(paste0("PCoA axis 2 (", var2_T3, "%)")) +
+  ggtitle("T3") +
+  theme_soil()
+
+Fig2_B_T3
+
+############
+
+ggsave(paste0(workdir, "plots/pcoa/timepoints_pcoa_DV_tr_Fig2_B_T1_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig2_B_T1,
+       width = 7, height = 6, dpi = 600)
+
+
+ggsave(paste0(workdir, "plots/pcoa/timepoints_pcoa_DV_tr_Fig2_B_T2_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig2_B_T2,
+       width = 7, height = 6, dpi = 600)
+
+
+ggsave(paste0(workdir, "plots/pcoa/timepoints_pcoa_DV_tr_Fig2_B_T3_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig2_B_T3,
+       width = 7, height = 6, dpi = 600)
+```
+
+
+####### Previous
+
+```{r}
+
+Fig2_B_1 <- ggplot(combined_data_DV_tr, aes(x = Axis.1, y = Axis.2, color = bulk_rhizo, shape = bulk_rhizo)) +
+  geom_point(size = 6, alpha = 1) +
+  geom_convexhull(aes(fill = bulk_rhizo), alpha = 0.1) +
+  scale_color_manual(values = c('#BA7F3A', '#3C8E3A')) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_DV_tr$values$Eigenvalues[1] / sum(pcoa_DV_tr$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_DV_tr$values$Eigenvalues[2] / sum(pcoa_DV_tr$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_soil() +
+  facet_wrap(~Timepoint)
+
+ggsave(paste0(workdir, "plots/pcoa/timepoints_pcoa_DV_tr_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig2_B,
+       width = 7, height = 6, dpi = 600)
+
+```
+
+## Panel C
+
+```{r}
+
+# Plot the number of vOTUs between habitats and bulk soil moisture
+alpha_DV_tr <- alpha(ps_DV_tr, index = "Observed")
+
+alpha_DV_tr$SampleID <- rownames(alpha_DV_tr)
+alpha_DV_tr_m <- merge(alpha_DV_tr, meta(ps_DV_tr), by = "SampleID")
+
+alpha_DV_tr_m$Numeric_Timepoint <- case_when(
+  alpha_DV_tr_m$Timepoint == "T0" ~ 0,
+  alpha_DV_tr_m$Timepoint == "T1" ~ 9,
+  alpha_DV_tr_m$Timepoint == "T2" ~ 14,
+  alpha_DV_tr_m$Timepoint == "T3" ~ 19,
+  TRUE ~ as.numeric(alpha_DV_tr_m$Timepoint)
+)
+
+alpha_DV_tr_m$Time_month <- case_when(
+  alpha_DV_tr_m$Timepoint == "T0" ~ "March",
+  alpha_DV_tr_m$Timepoint == "T1" ~ "June",
+  alpha_DV_tr_m$Timepoint == "T2" ~ "July",
+  alpha_DV_tr_m$Timepoint == "T3" ~ "August",
+  TRUE ~ (alpha_DV_tr_m$Timepoint)
+)
+
+alpha_DV_tr_m$Time_month <- factor(alpha_DV_tr_m$Time_month, levels = c("March", "June", "July", "August"))
+
+Fig2_C <- ggplot(alpha_DV_tr_m, aes(x = as.factor(Time_month), y = observed, fill = bulk_rhizo, color = bulk_rhizo)) +
+  geom_boxplot(color = "black", alpha = 0.7, position = position_dodge(0.75)) +
+  geom_point(position = position_jitterdodge(jitter.width = 0.5, dodge.width = 0.75), alpha = 1, color = "black") +
+  labs(x = "", y = "Number of vOTUs") +
+  scale_fill_manual(name = "soil", values = compartment_colors) +
+  scale_color_manual(name = "soil", values = compartment_colors) +
+  theme_soil()
+
+
+library(dplyr)
+library(rstatix)
+
+DV_richness_stat_test <- alpha_DV_tr_m %>%
+  group_by(Time_month) %>%
+  filter(n_distinct(bulk_rhizo) > 1) %>%
+  wilcox_test(observed ~ bulk_rhizo) %>%
+  add_significance("p") %>%
+  add_xy_position(x = "Time_month", dodge = 0.8)
+
+Fig2_C_stat <- Fig2_C +
+  stat_pvalue_manual(
+    DV_richness_stat_test,             # your stat_test dataframe
+    label = "p.signif",    # shows *, **, etc.
+    tip.length = 0.02,     # length of the whisker
+    hide.ns = FALSE,        # hide non-significant comparisons
+    position = position_dodge(width = 0.8),  # align with dodged boxes
+    label.size = 8
+  )
+
+Fig2_C_stat
+
+
+ggsave(paste0(workdir, "plots/alpha_div/Fig2_C_stat_DV_jitter_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig2_C_stat, 
+       width = 7, height = 6, dpi = 600)
+
+```
+
+
+## Panel D
+
+```{r}
+library(readr)
+metadata_AMF_all_11182025 <- read_csv("Library/CloudStorage/OneDrive-UniversityofCalifornia,Davis/Projects/Tomato_rhizosphere_Ani/Analysis/source_data/metadata_AMF_all_11182025.csv")
+
+colnames(metadata_AMF_all_11182025)
+
+metadata_AMF_all_11182025 <- metadata_AMF_all_11182025 |>
+  dplyr::rename(Timepoint = Timeoint)
+
+### Boxplots
+metadata_AMF_all_11182025$bulk_rhizo_t <- paste0(
+  metadata_AMF_all_11182025$bulk_rhizo, "_", metadata_AMF_all_11182025$Timepoint
+)
+
+metadata_AMF_all_11182025$bulk_rhizo_t <- factor(
+  metadata_AMF_all_11182025$bulk_rhizo_t,
+  levels = names(time_colors)
+)
+
+
+metadata_AMF_all_11182025$Time_month <- case_when(
+  metadata_AMF_all_11182025$Timepoint == "T0" ~ "March",
+  metadata_AMF_all_11182025$Timepoint == "T1" ~ "June",
+  metadata_AMF_all_11182025$Timepoint == "T2" ~ "July",
+  metadata_AMF_all_11182025$Timepoint == "T3" ~ "August",
+  TRUE ~ (metadata_AMF_all_11182025$Timepoint)
+)
+
+metadata_AMF_all_11182025$Time_month <- factor(metadata_AMF_all_11182025$Time_month, levels = c("March", "June", "July", "August"))
+
+library(dplyr)
+library(rstatix)
+
+DV_DNA_concentration_stat_test <- metadata_AMF_all_11182025 %>%
+  group_by(Time_month) %>%
+  filter(n_distinct(bulk_rhizo) > 1) %>%
+  wilcox_test(DNA_concentration ~ bulk_rhizo) %>%
+  add_significance("p") %>%
+  add_xy_position(x = "Time_month", dodge = 0.8)
+
+
+Fig2_D <- ggplot(metadata_AMF_all_11182025, aes(x = as.factor(Time_month), y = DNA_concentration, fill = bulk_rhizo, color = bulk_rhizo)) +
+  geom_boxplot(color = "black", alpha = 0.7, position = position_dodge(0.75)) +
+  geom_point(position = position_jitterdodge(jitter.width = 0.25, dodge.width = 0.75), alpha = 1, color = "black") +
+  scale_fill_manual(name = 'soil', values = compartment_colors) +
+  scale_color_manual(name = 'soil', values = compartment_colors) +
+  labs(x = "",y = "DNA concentration (ng/µL)") +theme_soil()
+
+
+Fig2_D_sig <- Fig2_D +
+  stat_pvalue_manual(
+    DV_DNA_concentration_stat_test,             # your stat_test dataframe
+    label = "p.signif",    # shows *, **, etc.
+    tip.length = 0.02,     # length of the whisker
+    hide.ns = FALSE,        # hide non-significant comparisons
+    position = position_dodge(width = 0.8),  # align with dodged boxes
+    label.size = 8
+  )
+
+Fig2_D_sig
+
+ggsave(paste0(workdir, "plots/DNA_concentrations/DV_boxplots_DNA_concentration_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig2_D_sig, 
+       width = 7, height = 6, dpi = 600)
+
+```
+
+## Combine Fig 2 ABCD
+
+```{r}
+library(patchwork)
+
+top_right <- ((Fig2_B_T1_3 | Fig2_B_T2_3) /
+                (Fig2_B_T3_3 | Fig2_B_T3_3)) +   # <-- wrap all 4 plots
+  plot_layout(widths = c(1,1), heights = c(1,1), guides = "collect") & 
+  theme(plot.margin = margin(2,2,2,2))
+
+top_right
+# Combine top row: Fig2_A on left, 4 small figs on right
+top_row <- Fig2_A | top_right + plot_layout(widths = c(2, 1)) &
+  theme(plot.margin = margin(2,2,2,2))
+
+# Bottom row: C and D side by side
+bottom_row <- Fig2_C_stat | Fig2_D_sig &
+  theme(plot.margin = margin(2,2,2,2))
+
+# Combine top and bottom rows
+Figure_2_combined <- top_row / bottom_row +
+  plot_layout(heights = c(1,1)) +  # same height for top & bottom
+  plot_annotation(tag_levels = 'A')
+
+Figure_2_combined
+
+
+ggsave(paste0(workdir, "plots/Manuscript_figures/Figure_2_combined_shorter_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Figure_2_combined, 
+      width = 14, height = 12, dpi = 600)
+
+```
+
+### Combined Fig 2 B
+
+```{r}
+
+# Combine with patchwork
+Figure_2_B_combined <- 
+                      (Fig2_B_T1_3 | Fig2_B_T2_3 | Fig2_B_T3_3) +
+  plot_annotation(tag_levels = 'A')
+
+Figure_2_B_combined
+
+ggsave(paste0(workdir, "plots/Manuscript_figures/Figure_2_B_combined_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Figure_2_B_combined, 
+        width = 7, height = 6, dpi = 600)
+
+```
+
+# Figure 3
+
+## Panel A
+
+
+```{r}
+## Split the data to different soil compartements
+
+ps_DV_tr_bulk <- subset_samples(ps_DV_tr, bulk_rhizo == "bulk")
+ps_DV_tr_bulk <- filter_taxa(ps_DV_tr_bulk, function(x) sum(x) > 0, TRUE)
+
+pcoa_DV_tr_bulk <- ordinate(ps_DV_tr_bulk, "PCoA", distance = "bray", binary = F)
+
+###### DNA viruses
+ps_DV_tr_bulk@sam_data$Numeric_Timepoint <- case_when(
+  ps_DV_tr_bulk@sam_data$Timepoint == "T0" ~ 0,
+  ps_DV_tr_bulk@sam_data$Timepoint == "T1" ~ 9, # 6
+  ps_DV_tr_bulk@sam_data$Timepoint == "T2" ~ 14, # 10
+  ps_DV_tr_bulk@sam_data$Timepoint == "T3" ~ 19, # 17
+  TRUE ~ as.numeric(ps_DV_tr_bulk@sam_data$Timepoint)
+)
+
+ps_DV_tr_bulk@sam_data$Time_month <- case_when(
+  ps_DV_tr_bulk@sam_data$Timepoint == "T0" ~ "March",
+  ps_DV_tr_bulk@sam_data$Timepoint == "T1" ~ "June",
+  ps_DV_tr_bulk@sam_data$Timepoint == "T2" ~ "July",
+  ps_DV_tr_bulk@sam_data$Timepoint == "T3" ~ "August",
+  TRUE ~ (ps_DV_tr_bulk@sam_data$Timepoint)
+)
+
+# Visualization of PCoA results for each niche and coloring by region
+pcoa_result_DV_tr_bulk <- as.data.frame(pcoa_DV_tr_bulk$vectors)
+
+# Extract sample data for temporal information
+temporal_data_DV_tr_bulk <- as.data.frame(sample_data(ps_DV_tr_bulk))
+
+# Combine data for plotting
+combined_data_DV_tr_bulk <- cbind(temporal_data_DV_tr_bulk, pcoa_result_DV_tr_bulk)
+
+# Calculate centroids for each group and timepoint
+centroid_data_DV_tr_bulk <- combined_data_DV_tr_bulk %>%
+  group_by( Timepoint) %>%
+  summarize(Centroid_X = mean(Axis.1), Centroid_Y = mean(Axis.2)) %>%
+  ungroup()
+
+#########################################################
+# Convert Timepoint to factor with the desired order
+combined_data_DV_tr_bulk$Timepoint <- factor(combined_data_DV_tr_bulk$Timepoint, levels = c("T0", "T1", "T2", "T3"))
+
+# Arrange data for plotting
+arranged_data_DV_tr_bulk <- centroid_data_DV_tr %>%
+  arrange( Timepoint)
+
+# Figure 3 - panel A - with arrows
+Fig3_A <- ggplot(combined_data_DV_tr_bulk, aes(x=Axis.1, y=Axis.2)) + 
+  geom_point(aes(fill=soil_moisture_perc, shape=Time_month), color='black', size=6) +
+  scale_fill_gradient(
+    low = "#D0B17F",   # dry soil
+    high = "#2171b5"   # wet soil
+  ) +
+  scale_shape_manual(
+    name = "Time_month",
+    breaks = c("March", "June", "July", "August"),
+    values = c(21,22,23,24)
+  ) +
+    geom_text_repel(data = centroid_data_DV_tr_bulk, aes(x = Centroid_X, y = Centroid_Y, label = Timepoint),
+                  size = 4, col = "black", fontface = 3) +
+  theme_bw() +
+  theme(
+    text = element_text(size = 16),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "none"
+  ) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_DV_tr_bulk$values$Eigenvalues[1] / sum(pcoa_DV_tr_bulk$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_DV_tr_bulk$values$Eigenvalues[2] / sum(pcoa_DV_tr_bulk$values$Eigenvalues) * 100, 2), "%)")) +
+  
+  # Add arrows connecting centroids
+  geom_segment(
+    data = centroid_data_DV_tr_bulk,
+    aes(
+      x = lag(Centroid_X), y = lag(Centroid_Y),
+      xend = Centroid_X, yend = Centroid_Y
+    ),
+    arrow = arrow(length = unit(0.3, "cm")),
+    color = "grey",
+    na.rm = TRUE
+  ) + theme_soil()
+
+
+ggsave(paste0(workdir, "plots/pcoa/Fig3_A_moisture_pcoa_DV_tr_bulk_NO_LEGEND_arrows_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig3_A, 
+       width = 7, height = 6, dpi = 600)
+
+ggsave(paste0(workdir, "plots/pcoa/Fig3_A_moisture_pcoa_DV_tr_bulk_NO_LEGEND_arrows_2_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig3_A, 
+       width = 6, height = 5, dpi = 600)
+
+
+## With legend
+
+Fig3_A_legend <- ggplot(combined_data_DV_tr_bulk, aes(x=Axis.1, y=Axis.2)) + 
+  geom_point(aes(fill=soil_moisture_perc, shape=Time_month), color='black', size=6) +
+  scale_fill_gradient(
+    low = "#D0B17F",   # dry soil
+    high = "#2171b5"   # wet soil
+  ) +
+  scale_shape_manual(
+    name = "Time_month",
+    breaks = c("March", "June", "July", "August"),
+    values = c(21,22,23,24)
+  ) +
+    geom_text_repel(data = centroid_data_DV_tr_bulk, aes(x = Centroid_X, y = Centroid_Y, label = Timepoint),
+                  size = 4, col = "black", fontface = 3) +
+  theme_bw()
+
+ggsave(paste0(workdir, "plots/pcoa/Fig3_A_legend_moisture_pcoa_DV_tr_bulk_LEGEND_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig3_A_legend, 
+       width = 6, height = 5, dpi = 600)
+
+```
+
+## Panel B
+
+```{r}
+## 6️⃣ Axis.1 vs Time
+data_dv_bulk <- combined_data_DV_tr %>% filter(bulk_rhizo == "bulk") %>%
+  filter(!is.na(Time_weeks) & !is.na(Axis.1))
+cor_dv_time <- cor.test(data_dv_bulk$Axis.1, data_dv_bulk$Time_weeks)
+
+Fig3_B <-   ggplot(data_dv_bulk, aes(x = Axis.1, y = Time_weeks, fill = soil_moisture_perc, shape = Time_month)) +
+    geom_point(size = 6) +
+   # geom_smooth(method = "lm", se = FALSE, color = "black") +
+    geom_smooth(aes(group = 1), method = "lm", se = FALSE, color = "black") +
+  annotate(
+    "text",
+    x = Inf,
+    y = -Inf,
+    label = paste0(
+      "r = ", round(cor_dv_time$estimate, 2),
+      ", p = ", signif(cor_dv_time$p.value, 2)
+    ),
+    hjust = 1.1,
+    vjust = -0.5,
+    size = 6
+  ) +
+    moisture_gradient +
+    scale_shape_manual(
+      name = "Time_month",
+      breaks = c("March", "June", "July", "August"),
+      values = c(21,22,23,24)
+    ) +
+    labs(x = "Bulk soil DNA viral PCoA Axis 1", y = "Time (weeks)", fill = "Soil moisture (%)") + 
+    theme_soil()
+
+Fig3_B
+
+
+ggsave(paste0(workdir, "plots/axis_moisture/DV_Axis1_vs_Time_", Sys.Date(), ".pdf"),
+       plot = Fig3_B, 
+       width = 7, height = 6, dpi = 600)
+
+ggsave(paste0(workdir, "plots/axis_moisture/DV_Axis1_vs_Time_2_", Sys.Date(), ".pdf"),
+       plot = Fig3_B, 
+       width = 6, height = 5, dpi = 600)
+
+
+```
+
+## Panel C
+
+```{r}
+
+cor_time_moisture <- cor.test(data_dv_bulk$soil_moisture_perc, data_dv_bulk$Time_weeks)
+
+Fig3_C <- ggplot(data_dv_bulk, aes(x = Time_weeks, y = soil_moisture_perc, fill = soil_moisture_perc, shape = Time_month)) +
+  geom_point(size = 6) +
+    geom_smooth(aes(group = 1), method = "lm", se = FALSE, color = "black") +
+  annotate("text",
+           x = min(data_dv_bulk$Time_weeks, na.rm = TRUE),
+           y = max(data_dv_bulk$soil_moisture_perc, na.rm = TRUE),
+           label = paste0("r = ", round(cor_time_moisture$estimate, 2),
+                          ", p = ", signif(cor_time_moisture$p.value, 2)),
+           hjust = 0, vjust = 1.5, size = 4) +
+    moisture_gradient_fill +
+    scale_shape_manual(
+      name = "Time_month",
+      breaks = c("March", "June", "July", "August"),
+      values = c(21,22,23,24)
+    ) +
+  labs(x = "Time (weeks)", y = "Soil moisture (%)", color = "Sampling month") +
+  theme_soil()
+
+
+Fig3_C
+
+ggsave(paste0(workdir, "plots/axis_moisture/plot_time_moisture_", Sys.Date(), ".pdf"),
+       plot = Fig3_C, 
+       width = 7, height = 6, dpi = 600)
+
+```
+
+
+## Panel D
+
+
+```{r}
+
+## Axis.1 vs Soil Moisture
+data_dv_bulk <- combined_data_DV_tr %>% filter(bulk_rhizo == "bulk") %>%
+  filter(!is.na(soil_moisture_perc) & !is.na(Axis.1))
+cor_dv_soil <- cor.test(data_dv_bulk$soil_moisture_perc, data_dv_bulk$Axis.1)
+
+Fig3_D <- ggplot(data_dv_bulk, aes(x = Axis.1, y = soil_moisture_perc, fill = soil_moisture_perc, shape = Time_month)) +
+  geom_point(size = 6) +
+  geom_smooth(aes(group = 1), method = "lm", se = FALSE, color = "black") +
+  annotate("text",x = Inf,y = -Inf,
+    label = paste0(
+      "r = ", round(cor_dv_soil$estimate, 2),
+      ", p = ", signif(cor_dv_soil$p.value, 2)
+    ), hjust = 1.1,vjust = -0.5,size = 6)+
+    moisture_gradient_fill +
+    scale_shape_manual(
+      name = "Time_month",
+      breaks = c("March", "June", "July", "August"),
+      values = c(21,22,23,24)
+    ) +
+  labs(x = "Bulk soil DNA viral PCoA Axis 1", y = "Soil moisture (%)", color = "Time (weeks)") +
+  theme_soil()
+
+Fig3_D
+
+ggsave(paste0(workdir, "plots/axis_moisture/DV_Axis1_vs_SoilMoisture_", Sys.Date(), ".pdf"),
+       plot = Fig3_D, 
+       width = 7, height = 6, 
+       dpi = 600)
+
+ggsave(paste0(workdir, "plots/axis_moisture/DV_Axis1_vs_SoilMoisture_2_", Sys.Date(), ".pdf"),
+       plot = Fig3_D, 
+       width = 6, height = 5, 
+       dpi = 600)
+```
+
+## Panel E
+
+```{r}
+
+## DNA viruses
+Fig3_E <- 
+  ggplot(alpha_DV_tr_m %>% filter( bulk_rhizo == "bulk"),
+         aes(x = soil_moisture_perc, y = observed, fill = soil_moisture_perc, shape = Time_month)
+  ) +
+  geom_point(size = 6) +
+  labs(
+    title = "",
+    x = "Soil Moisture (%)",
+    y = "Number of vOTUs"
+  ) +
+  
+  # Single regression line for all bulk samples
+  geom_smooth(
+    data = alpha_DV_tr_m %>% filter( bulk_rhizo == "bulk"),
+    mapping = aes(x = soil_moisture_perc, y = observed), # explicitly set
+    method = "lm",
+    se = FALSE,
+    color = "black",
+    inherit.aes = FALSE # prevents re-using main plot aesthetics
+  ) +
+  
+  # R² and p-value for all bulk samples
+  stat_poly_eq(
+    data = alpha_DV_tr_m %>% filter( bulk_rhizo == "bulk"),
+    mapping = aes(x = soil_moisture_perc, y = observed,
+                  label = paste(..rr.label.., ..p.value.label.., sep = "~~~")),
+    formula = y ~ x,
+    parse = TRUE,
+    color = "black",
+    inherit.aes = FALSE
+  ) +
+  
+  # Manual color and shape scales
+    moisture_gradient_fill +
+    scale_shape_manual(
+      name = "Time_month",
+      breaks = c("March", "June", "July", "August"),
+      values = c(21,22,23,24)
+    ) +
+  theme_soil()
+
+
+Fig3_E
+
+
+ggsave(
+  filename = paste0(workdir, "plots/richness_moisture/scatter_alpha_moisture_plot_DV_time_", Sys.Date(), ".pdf"),
+  plot = Fig3_E,
+  width = 7, height = 6
+)
+
+```
+
+## Panel F
+
+```{r}
+
+Fig3_F <- ggplot(metadata_AMF_all_11182025 %>% filter(bulk_rhizo == "bulk"),
+       aes(x = soil_moisture_erc,
+           y = DNA_concentration,
+           fill = soil_moisture_erc,
+           shape = Time_month)) +
+  geom_point(size = 6) +
+    geom_smooth(aes(group = 1), method = "lm", se = FALSE, color = "black") +
+  scale_color_manual(values = bulk_month_colors) +
+  scale_y_continuous(limits = c(0, 0.5)) +
+  labs(
+    x = "Soil Moisture (%)",
+    y = "DNA Concentration (ng/µL)",
+    color = "Timepoint"
+  ) +
+  # R² and p-value
+  stat_poly_eq(data = metadata_AMF_all_11182025 %>% filter(bulk_rhizo == "bulk"),
+    mapping = aes(
+      x = soil_moisture_erc,
+      y = DNA_concentration,
+      label = paste(..rr.label.., ..p.value.label.., sep = "~~~")
+    ),
+    formula = y ~ x,
+    parse = TRUE,
+    color = "black",
+    inherit.aes = FALSE
+  ) +
+    # Manual color and shape scales
+    moisture_gradient_fill +
+    scale_shape_manual(
+      name = "Time_month",
+      breaks = c("March", "June", "July", "August"),
+      values = c(21,22,23,24)
+    ) +
+  theme_soil()
+
+ggsave(
+  filename = paste0(workdir, "plots/DNA_concentrations/DNA_concentration_scatter_plot_bulk_soil", Sys.Date(), ".pdf"),
+  plot = Fig3_F,
+  width = 7, height = 6
+)
+
+```
+
+## Panel G
+
+```{r}
+###############################################
+### 1. Merge metadata
+###############################################
+
+ordered_sample_ids <- sample_data(ps_DV_tr_bulk)$SampleID
+
+virus_data_ordered <- virus_data[ordered_sample_ids, ]
+
+# Scale and Order Soil Chemistry Data
+soil_chem_data <- meta(ps_DV_tr_bulk)
+soil_chem_data <- soil_chem_data[ordered_sample_ids, ]
+
+## Without soil moisture
+#soil_chem_data_scaled <- soil_chem_data %>% 
+#  as.data.frame() %>% 
+#  select(-('WDRF_Buffer_pH')) %>%
+#  mutate(across(`Soil_pH`:`CEC_Sum_of_Cations_me_100g`, ~scale(.))) %>%
+#  select(`Soil_pH`:`CEC_Sum_of_Cations_me_100g`) 
+
+## WITH soil moisture
+soil_chem_data_scaled <- soil_chem_data %>% 
+  as.data.frame() %>% 
+  select(-('WDRF_Buffer_pH')) %>%
+  mutate(across(`soil_moisture_perc`:`CEC_Sum_of_Cations_me_100g`, ~scale(.))) %>%
+  select(`soil_moisture_perc`:`CEC_Sum_of_Cations_me_100g`) 
+
+soil_chem_data_scaled$SampleID <- rownames(soil_chem_data_scaled)
+
+soil_data_full <- merge(
+  soil_chem_data_scaled,
+  soil_chem_data[, 1:6],   
+  by = "SampleID"
+)
+
+# Order samples by Timepoint & Plot (you can change if needed)
+soil_data_full <- soil_data_full %>%
+  arrange(Timepoint, Plot)
+
+rownames(soil_data_full) <- soil_data_full$SampleID
+
+soil_data_full$Time_month <- case_when(
+  soil_data_full$Timepoint == "T0" ~ "March",
+  soil_data_full$Timepoint == "T1" ~ "June",
+  soil_data_full$Timepoint == "T2" ~ "July",
+  soil_data_full$Timepoint == "T3" ~ "August",
+  TRUE ~ (soil_data_full$Timepoint)
+)
+
+###############################################
+### 2. Extract scaled chemistry matrix
+###############################################
+
+soil_matrix <- as.matrix(
+  soil_data_full[ ,
+                  which(names(soil_data_full) == "soil_moisture_perc"):
+                    which(names(soil_data_full) == "CEC_Sum_of_Cations_me_100g")]
+)
+
+
+###############################################
+### 3. Annotation dataframe (only Plot & Timepoint)
+###############################################
+
+annotation_df <- soil_data_full[, c("Plot", "Time_month")]
+
+
+###############################################
+### 4. Annotation colors
+###############################################
+
+annotation_colors <- list(
+  Plot = plot_colors,
+  Time_month = bulk_month_colors
+)
+
+
+###############################################
+### 5. Neutral, non-conflicting heatmap palette
+###############################################
+
+heatmap_colors <- colorRampPalette(c("white", "#b9b2d8", "#7f78a8", "#3c3a4a"))(200)
+# light lavender → medium purple → deep grey-purple
+
+
+###############################################
+### 6. Heatmap
+###############################################
+
+
+# Bulk Soil Chemistry (Sample-clustered)
+Fig3_G <- pheatmap(
+  soil_matrix,
+  cluster_rows = TRUE,        # cluster samples
+  cluster_cols = FALSE,       # keep variable order
+  annotation_row = annotation_df,
+  annotation_colors = annotation_colors,
+  border_color = NA,
+  color = heatmap_colors,
+  show_rownames = FALSE,
+  show_colnames = TRUE,
+  fontsize = 12,
+) + theme_soil()
+
+
+pheatmap(
+  soil_matrix,
+  cluster_rows = FALSE,        # cluster samples
+  cluster_cols = TRUE,       # keep variable order
+  annotation_row = annotation_df,
+  annotation_colors = annotation_colors,
+  border_color = NA,
+  color = heatmap_colors,
+  show_rownames = FALSE,
+  show_colnames = TRUE,
+  fontsize = 12,
+  main = "Bulk Soil Chemistry (Variable-clustered)"
+)
+
+
+
+pdf(paste0(workdir, "plots/heatmap/soil_chemistry_heatmap_", Sys.Date(), ".pdf"), width = 15, height = 10)
+
+pheatmap(
+  soil_matrix,
+  cluster_rows = TRUE,        # cluster samples
+  cluster_cols = FALSE,       # keep variable order
+  annotation_row = annotation_df,
+  annotation_colors = annotation_colors,
+  border_color = NA,
+  color = heatmap_colors,
+  show_rownames = FALSE,
+  show_colnames = TRUE,
+  fontsize = 24,
+  main = "Bulk Soil Chemistry (Sample-clustered)"
+)
+
+dev.off()
+
+
+
+pdf(paste0(workdir, "plots/heatmap/soil_chemistry_heatmap_varaible_clustered_", Sys.Date(), ".pdf"), width = 10, height = 8)
+
+pheatmap(
+  soil_matrix,
+  cluster_rows = FALSE,        # cluster samples
+  cluster_cols = TRUE,       # keep variable order
+  annotation_row = annotation_df,
+  annotation_colors = annotation_colors,
+  border_color = NA,
+  color = heatmap_colors,
+  show_rownames = FALSE,
+  show_colnames = TRUE,
+  fontsize = 12,
+  main = "Bulk Soil Chemistry (Variable-clustered)"
+)
+
+dev.off()
+
+
+```
+
+#### Soil chemistry correlation and PCA
+
+```{r}
+# Load required packages
+library(tidyverse)
+library(ggfortify)  # for autoplot PCA
+library(vegan)      # for scaling if needed
+
+soil_chem_data_scaled_NO_moisture <- soil_chem_data_scaled %>%
+  select(-soil_moisture_perc)   # replace with the exact column name if different
+
+# Run PCA
+pca_chem <- prcomp(soil_chem_data_scaled_NO_moisture, center = TRUE, scale. = TRUE)
+
+# Summary of PCA
+summary(pca_chem)  # variance explained by PC1, PC2, etc.
+
+# Extract scores for samples
+scores <- as.data.frame(pca_chem$x)
+
+# Add metadata (time and soil moisture)
+# If there is a column for bulk/rhizo, filter bulk only
+temporal_df_bulk <- temporal_data_DV_tr[temporal_data_DV_tr$bulk_rhizo == "bulk", ]
+
+# Now combine with PCA scores
+pca_soil_chem_data <- cbind(temporal_df_bulk, scores)
+
+pca_soil_chem_data
+
+pca_soil_chem_data$Time_month <- case_when(
+  pca_soil_chem_data$Timepoint == "T0" ~ "March",
+  pca_soil_chem_data$Timepoint == "T1" ~ "June",
+  pca_soil_chem_data$Timepoint == "T2" ~ "July",
+  pca_soil_chem_data$Timepoint == "T3" ~ "August",
+  TRUE ~ (pca_soil_chem_data$Timepoint)
+)
+
+pca_soil_chem_data$Time_weeks <- case_when(
+  pca_soil_chem_data$Timepoint == "T0" ~ "0",
+  pca_soil_chem_data$Timepoint == "T1" ~ "9",
+  pca_soil_chem_data$Timepoint == "T2" ~ "14",
+  pca_soil_chem_data$Timepoint == "T3" ~ "19",
+  TRUE ~ (pca_soil_chem_data$Timepoint)
+)
+
+pca_soil_chem_data$Time_weeks <- as.numeric(pca_soil_chem_data$Time_weeks)
+# Correlate PC1 with time and soil moisture
+cor.test(pca_soil_chem_data$PC1, pca_soil_chem_data$Time_weeks)        # correlation with linear time
+cor.test(pca_soil_chem_data$PC1, pca_soil_chem_data$soil_moisture_perc)    # correlation with soil moisture
+
+# Scatter plot: PC1 vs Soil Moisture
+cor_Fig3_G_2 <- cor.test(pca_soil_chem_data$soil_moisture_perc, pca_soil_chem_data$PC1)
+
+Fig3_G_2 <- 
+   ggplot(pca_soil_chem_data, aes(x = soil_moisture_perc, y = PC1, fill = soil_moisture_perc, shape = Time_month)) +
+  geom_point(size = 6) +
+    geom_smooth(aes(group = 1), method = "lm", se = FALSE, color = "black") +
+  annotate("text",
+           x = min(pca_soil_chem_data$soil_moisture_perc, na.rm = TRUE),
+           y = max(pca_soil_chem_data$PC1, na.rm = TRUE),
+           label = paste0("r = ", round(cor_Fig3_G_2$estimate, 2),
+                          ", p = ", signif(cor_Fig3_G_2$p.value, 2)),
+           hjust = 0, vjust = 1.5, size = 4) +
+    moisture_gradient +
+    scale_shape_manual(
+      name = "Time_month",
+      breaks = c("March", "June", "July", "August"),
+      values = c(21,22,23,24)
+    ) +
+  labs(x = "Soil moisture (%)", y = "PC1 (Soil Chemistry)", color = "Soil moisture (%)") + 
+    theme_soil()
+
+
+
+Fig3_G_2
+
+ggsave(paste0(workdir, "plots/axis_moisture/PCA_BulkChem_SoilMoisture_", Sys.Date(), ".pdf"),
+       plot = Fig3_G_2, 
+       width = 7, height = 6, 
+       dpi = 600)
+
+####
+cor_Fig3_G_3 <- cor.test(pca_soil_chem_data$Time_weeks, pca_soil_chem_data$PC1)
+
+Fig3_G_3 <- ggplot(pca_soil_chem_data, aes(x = Time_weeks, y = PC1, color = Time_month)) +
+  geom_point(size = 6) +
+  geom_smooth(method = "lm", se = FALSE, color = "black") +
+  annotate("text",
+           x = min(pca_soil_chem_data$Time_weeks, na.rm = TRUE),
+           y = max(pca_soil_chem_data$PC1, na.rm = TRUE),
+           label = paste0("r = ", round(cor_Fig3_G_3$estimate, 2),
+                          ", p = ", signif(cor_Fig3_G_3$p.value, 2)),
+           hjust = 0, vjust = 1.5, size = 4) +
+  labs(x = "Time (weeks)", y = "PC1 (Soil Chemistry)") +
+  scale_color_manual(values = c("March" = "#C9A46C", "June" = "#BA7F3A",
+                                "July" = "#8F5A28", "August" = "#5E4224")) +
+  theme_soil()
+
+Fig3_G_3
+
+ggsave(paste0(workdir, "plots/axis_moisture/PCA_BulkChem_Time_", Sys.Date(), ".pdf"),
+       plot = Fig3_G_3, 
+       width = 7, height = 6, 
+       dpi = 600)
+
+### PCA
+
+library(ggplot2)
+library(ggfortify)  # for autoplot if needed
+
+# Make Time_month a factor
+pca_soil_chem_data$Time_month <- factor(pca_soil_chem_data$Time_month, levels = c("March", "June", "July", "August"))
+
+# Basic PCA biplot with convex hulls by Time_month
+Fig3_G_4 <- ggplot(pca_soil_chem_data, aes(x = PC1, y = PC2, color = Time_month, color = Time_month)) +
+  geom_point(size = 6, alpha = 1) +
+  
+  # Convex hulls for each time point
+  geom_polygon(data = pca_soil_chem_data %>% group_by(Time_month) %>% slice(chull(PC1, PC2)),
+               aes(x = PC1, y = PC2, fill = Time_month),
+               alpha = 0.1, inherit.aes = TRUE) +
+  xlab(paste0("PC1 (", round(summary(pca_chem)$importance[2,1]*100, 1), "%)")) +
+  ylab(paste0("PC2 (", round(summary(pca_chem)$importance[2,2]*100, 1), "%)")) +
+  scale_color_manual(values = c("March" = "#C9A46C", "June" = "#BA7F3A",
+                                "July" = "#8F5A28", "August" = "#5E4224")) +
+  
+    scale_fill_manual(values = c("March" = "#C9A46C", "June" = "#BA7F3A",
+                                "July" = "#8F5A28", "August" = "#5E4224")) +
+  theme_soil()
+
+
+Fig3_G_4
+
+ggsave(paste0(workdir, "plots/axis_moisture/PCA_BulkChemistry_", Sys.Date(), ".pdf"),
+       plot = Fig3_G_4, 
+       width = 7, height = 6, 
+       dpi = 600)
+
+
+### PCoA Axis 1 and PCA axis 1
+
+############
+# Check presence
+all(c("SampleID") %in% colnames(pca_soil_chem_data))
+all(c("SampleID") %in% colnames(data_dv_bulk))
+
+# Check if they are in the same order
+identical(
+  pca_soil_chem_data$SampleID,
+  data_dv_bulk$SampleID
+)
+
+# Check for missing
+setdiff(pca_soil_chem_data$SampleID, data_dv_bulk$SampleID)
+setdiff(data_dv_bulk$SampleID, pca_soil_chem_data$SampleID)
+
+# Join
+
+pca_soil_chem_DV_data <- pca_soil_chem_data %>%
+  left_join(
+    data_dv_bulk %>% 
+      select(SampleID, Axis.1, Axis.2),
+    by = "SampleID"
+  )
+
+
+cor_Fig3_G_5 <- cor.test(pca_soil_chem_DV_data$Axis.1, pca_soil_chem_DV_data$PC1)
+
+Fig3_G_5 <- ggplot(pca_soil_chem_DV_data, aes(x = Axis.1, y = PC1, fill = soil_moisture_perc, shape = Time_month)) +
+  geom_point(size = 6) +
+    geom_smooth(aes(group = 1), method = "lm", se = FALSE, color = "black") +annotate(
+    "text",
+    x = Inf,
+    y = -Inf,
+    label = paste0(
+      "r = ", round(cor_Fig3_G_5$estimate, 2),
+      ", p = ", signif(cor_Fig3_G_5$p.value, 2)
+    ),
+    hjust = 1.1,
+    vjust = -0.5,
+    size = 6
+  )+
+    moisture_gradient_fill +
+    scale_shape_manual(
+      name = "Time_month",
+      breaks = c("March", "June", "July", "August"),
+      values = c(21,22,23,24)
+    ) +
+  labs(x = "Bulk soil DNA viral PCoA Axis 1", y = "Bulk soil chemistry PCA Axis 1") +
+  theme_soil()
+
+Fig3_G_5
+
+ggsave(paste0(workdir, "plots/axis_moisture/cor_DV_PcoA_soilchem_PCA_", Sys.Date(), ".pdf"),
+       plot = Fig3_G_5, 
+       width = 7, height = 6, 
+       dpi = 600)
+
+ggsave(paste0(workdir, "plots/axis_moisture/cor_DV_PcoA_soilchem_PCA_2_", Sys.Date(), ".pdf"),
+       plot = Fig3_G_5, 
+       width = 6, height = 5, 
+       dpi = 600)
+
+```
+
+
+## Combine Fig 3 ABCDEF
+
+
+```{r}
+# Fig3_A # Fig3_B # Fig3_D # Fig3_G_5
+
+library(patchwork)
+
+Figure_3_combined <-
+  (Fig3_A | Fig3_D) /
+  (Fig3_B | Fig3_G_5) +
+  plot_annotation(tag_levels = "A") &
+  theme(
+    plot.margin = margin(5, 5, 5, 5)
+  )
+
+Figure_3_combined
+
+
+# Combine with patchwork
+Figure_3_combined <- (Fig3_A | Fig3_B) / (Fig3_D | Fig3_G_5 )+
+  plot_annotation(tag_levels = 'A')
+
+Figure_3_combined
+
+
+ggsave(paste0(workdir, "plots/Manuscript_figures/Figure_3_combined_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Figure_3_combined, 
+       width = 12, height = 10, dpi = 600)
+
+# Add Panel G manually
+
+```
+
+
+# Figure 4
+
+
+## Panel A
+
+```{r}
+
+ps_DV_tr_rhizo <- subset_samples(ps_DV_tr, bulk_rhizo == "rhizo")
+ps_DV_tr_rhizo <- filter_taxa(ps_DV_tr_rhizo, function(x) sum(x) > 0, TRUE)
+
+
+pcoa_DV_tr_rhizo <- ordinate(ps_DV_tr_rhizo, "PCoA", distance = "bray", binary = F)
+
+###### DNA viruses
+ps_DV_tr_rhizo@sam_data$Numeric_Timepoint <- case_when(
+  #ps_DV_tr_rhizo@sam_data$Timepoint == "T0" ~ 0,
+  ps_DV_tr_rhizo@sam_data$Timepoint == "T1" ~ 9, # 6
+  ps_DV_tr_rhizo@sam_data$Timepoint == "T2" ~ 14, # 10
+  ps_DV_tr_rhizo@sam_data$Timepoint == "T3" ~ 19, # 17
+  TRUE ~ as.numeric(ps_DV_tr_rhizo@sam_data$Timepoint)
+)
+
+ps_DV_tr_rhizo@sam_data$Time_month <- case_when(
+  #ps_DV_tr_rhizo@sam_data$Timepoint == "T0" ~ "March",
+  ps_DV_tr_rhizo@sam_data$Timepoint == "T1" ~ "June",
+  ps_DV_tr_rhizo@sam_data$Timepoint == "T2" ~ "July",
+  ps_DV_tr_rhizo@sam_data$Timepoint == "T3" ~ "August",
+  TRUE ~ (ps_DV_tr_rhizo@sam_data$Timepoint)
+)
+
+# Visualization of PCoA results for each niche and coloring by region
+pcoa_result_DV_tr_rhizo <- as.data.frame(pcoa_DV_tr_rhizo$vectors)
+
+# Extract sample data for temporal information
+temporal_data_DV_tr_rhizo <- as.data.frame(sample_data(ps_DV_tr_rhizo))
+
+# Combine data for plotting
+combined_data_DV_tr_rhizo <- cbind(temporal_data_DV_tr_rhizo, pcoa_result_DV_tr_rhizo)
+
+# Calculate centroids for each group and timepoint
+centroid_data_DV_tr_rhizo <- combined_data_DV_tr_rhizo %>%
+  group_by( Timepoint) %>%
+  summarize(Centroid_X = mean(Axis.1), Centroid_Y = mean(Axis.2)) %>%
+  ungroup()
+
+#########################################################
+# Convert Timepoint to factor with the desired order
+combined_data_DV_tr_rhizo$Timepoint <- factor(combined_data_DV_tr_rhizo$Timepoint, levels = c("T0", "T1", "T2", "T3"))
+
+
+plot_colors <- c(
+  "1_4" = "#6FB7B4",  # pale lavender
+  "5_5" = "#7A2E1D",  # muted teal
+  "7_8" = "#8F7A3E"   # cool slate gray
+)
+
+amf_colors <- c(
+  "Control"   = "#8C8C8C",
+  "Treatment" = "#2F3E5C"   # deep navy
+)
+
+Fig4_A <- ggplot(combined_data_DV_tr_rhizo, aes(x = Axis.1, y = Axis.2, shape = Timepoint)) +
+  geom_point(aes(fill = Plot), size = 6, color = "black") +
+  geom_convexhull(aes(color = Plot,fill = Plot, group = Plot), alpha = 0.1) +
+  scale_color_manual(values = plot_colors) +
+  scale_fill_manual(values = plot_colors) +
+  scale_shape_manual(
+    name = "Timepoint",
+    values = c(22,23,24)
+  ) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_DV_tr_rhizo$values$Eigenvalues[1] / sum(pcoa_DV_tr_rhizo$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_DV_tr_rhizo$values$Eigenvalues[2] / sum(pcoa_DV_tr_rhizo$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_soil()
+
+
+ggsave(paste0(workdir, "plots/pcoa/pcoa_DV_rhizo_plots_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig4_A,
+       width = 7, height = 6, dpi = 600)
+
+ggsave(paste0(workdir, "plots/pcoa/Fig4_A_pcoa_DV_rhizo_plots_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig4_A,
+       width = 6, height = 5, dpi = 600)
+
+```
+
+
+## Panel B
+
+
+```{r}
+
+# Suppose your CAP object is:
+cap_RV_tr_rhizo <- ordinate(ps_RV_tr, method = "CAP", distance = "bray", formula = ~ Plot)
+# Extract eigenvalues
+eig_vals_cap_RV_tr_rhizo <- cap_RV_tr_rhizo$CCA$eig
+
+# Percent variance explained by each constrained axis
+cap_var_RV_tr_rhizo <- eig_vals_cap_RV_tr_rhizo / sum(eig_vals_cap_RV_tr_rhizo) * 100
+cap_var_RV_tr_rhizo
+# CAP1: cap_var[1], CAP2: cap_var[2]
+
+# Then use in ggplot axis labels:
+# 
+# Fig4_B <- plot_ordination(ps_RV_tr, cap_RV_tr_rhizo, type = "samples", color = "Plot",  shape = "Timepoint") +
+#   geom_point(size = 6, alpha = 1) +
+#   geom_convexhull(aes(fill = Plot, group = Plot),alpha = 0.1 ) +
+#   scale_color_manual(values = plot_colors) +
+#   scale_fill_manual(values = plot_colors) +
+#   scale_shape_manual(
+#     name = "Timepoint",
+#     breaks = c("T1", "T2", "T3"),
+#     values = c(22,23,24)) +
+#   xlab(paste0("CAP1 (", round(cap_var_RV_tr_rhizo[1], 1), "%)")) +
+#   ylab(paste0("CAP2 (", round(cap_var_RV_tr_rhizo[2], 1), "%)")) +
+#   theme_soil()
+
+
+Fig4_B <- plot_ordination(ps_RV_tr, cap_RV_tr_rhizo, type = "samples", color = "Plot",  shape = "Timepoint") +
+  geom_point(aes(fill = Plot), size = 6, alpha = 1, color = "black") +  # border black
+  geom_convexhull(aes(fill = Plot, group = Plot), alpha = 0.1) +
+  scale_color_manual(values = plot_colors) +
+  scale_fill_manual(values = plot_colors) +
+  scale_shape_manual(
+    name = "Timepoint",
+    breaks = c("T1", "T2", "T3"),
+    values = c(22,23,24)) +
+  xlab(paste0("CAP1 (", round(cap_var_RV_tr_rhizo[1], 1), "%)")) +
+  ylab(paste0("CAP2 (", round(cap_var_RV_tr_rhizo[2], 1), "%)")) +
+  theme_soil()
+
+
+Fig4_B
+
+ggsave(paste0(workdir, "plots/CAP/CAP_plot_RV_space_rhizo_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig4_B, 
+       width = 7, height = 6, dpi = 600)
+
+ggsave(paste0(workdir, "plots/CAP/Fig4_B_CAP_plot_RV_space_rhizo_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig4_B, 
+       width = 6, height = 5, dpi = 600)
+
+## Test the significance?
+
+# Perform permutation test (anova)
+anova(cap_RV_tr_rhizo)                  # Overall model significance
+anova(cap_RV_tr_rhizo, by = "terms")    # Tests each predictor
+anova(cap_RV_tr_rhizo, by = "axis")     # Tests each constrained axis
+
+```
+
+
+## Panel C
+
+### RNAseq and deseq2
+
+```{r}
+###########################################################################
+# DESeq2 Differential Expression + Functional Annotation
+###########################################################################
+
+# ------------------------------
+# 0. Setup
+# ------------------------------
+set.seed(29092020)
+dir.create(file.path(workdir, "plots/deseq2"), recursive = TRUE, showWarnings = FALSE)
+
+# ------------------------------
+# 1. Load Libraries
+# ------------------------------
+library(DESeq2)
+library(dplyr)
+library(readr)
+library(tibble)
+library(stringr)
+library(apeglm)
+library(pheatmap)
+library(ggplot2)
+library(tidyr)
+
+
+# ------------------------------
+# 2. Load Data
+# ------------------------------
+
+## 2a. Counts table
+counts_file <- file.path(workdir, "RNA/merged_numreads.tsv")
+merged_numreads <- read_delim(counts_file, delim = "\t", escape_double = FALSE, trim_ws = TRUE)
+counts <- as.data.frame(merged_numreads)
+rownames(counts) <- counts$Name
+counts$Name <- NULL
+counts <- round(counts)
+
+## 2b. Metadata
+metadata_file <- file.path(workdir, "source_data/metadata_AMF_rhizo.csv")
+metadata_AMF_rhizo <- read_csv(metadata_file)
+metadata <- metadata_AMF_rhizo %>% filter(SampleID %in% colnames(counts))
+
+## 2c. EggNOG annotations
+eggnog_file <- file.path(workdir, "RNA/eggnog_mapper.emapper.annotations")
+eggnog_mapper_emapper <- read_tsv(
+  eggnog_file,
+  comment = "#",
+  col_names = c(
+    "query", "seed_ortholog", "evalue", "score", "eggNOG_OGs",
+    "max_annot_lvl", "COG_category", "Description", "Preferred_name",
+    "GOs", "EC", "KEGG_ko", "KEGG_Pathway", "KEGG_Module",
+    "KEGG_Reaction", "KEGG_rclass", "BRITE", "KEGG_TC", "CAZy",
+    "BiGG_Reaction", "PFAMs"
+  )
+)
+
+# Remove isoform suffix (.p1, .p2)
+library(dplyr)
+library(stringr)
+
+emapper.annotations <- eggnog_mapper_emapper %>% mutate(query = str_remove(query, "\\.p[0-9]+$"))
+
+# Keep best annotation per transcript (lowest e-value)
+emapper_best <- emapper.annotations %>%
+  group_by(query) %>%
+  slice_min(order_by = evalue, n = 1) %>%
+  ungroup()
+
+# ------------------------------
+# 3. Build DESeq2 Dataset
+# ------------------------------
+dds <- DESeqDataSetFromMatrix(
+  countData = counts,
+  colData = metadata,
+  design = ~ Site + Timepoint + Treatment
+)
+
+# ------------------------------
+# 4. Run DESeq2
+# ------------------------------
+dds <- DESeq(dds)
+
+# Get DE results for Treatment vs Control
+res <- results(dds, contrast = c("Treatment", "Treatment", "Control"))
+
+summary(res, alpha = 0.05)
+
+# Shrink log2 fold-changes for visualization
+# https://introtogenomics.readthedocs.io/en/latest/2021.11.11.DeseqTutorial.html
+resLFC <- lfcShrink(dds, coef = "Treatment_Treatment_vs_Control", type = "apeglm")
+
+# Order results by adjusted p-value
+resOrdered <- resLFC[order(resLFC$padj), ]
+resOrdered.df <- as.data.frame(resOrdered) %>% tibble::rownames_to_column("transcript_id")
+
+# Export DE results
+write.csv(resOrdered.df, file.path(workdir, "results/DE_transcripts_AMF_vs_Control.csv"), row.names = FALSE)
+
+
+# ------------------------------
+# 4b. Variance-stabilizing transformation (for PCA, clustering)
+# ------------------------------
+vsd <- vst(dds, blind = TRUE)
+
+# PCA plot
+pca_data <- plotPCA(vsd, intgroup = c("Timepoint", "Treatment", "Site"), returnData = TRUE)
+percentVar <- round(100 * attr(pca_data, "percentVar"))
+
+ggplot(pca_data, aes(PC1, PC2, color = Site, shape = Timepoint)) +
+  geom_point(size = 3, alpha = 0.8) +
+  theme_minimal() +
+  labs(
+    title = "PCA of Variance-Stabilized Transcript Counts",
+    x = paste0("PC1: ", percentVar[1], "% variance"),
+    y = paste0("PC2: ", percentVar[2], "% variance")
+  )
+
+ggplot(pca_data, aes(PC1, PC2, color = Treatment, shape = Site)) +
+  geom_point(size = 3, alpha = 0.8) +
+  theme_minimal() +
+  labs(
+    title = "PCA of Variance-Stabilized Transcript Counts",
+    x = paste0("PC1: ", percentVar[1], "% variance"),
+    y = paste0("PC2: ", percentVar[2], "% variance")
+  )
+
+ggsave(file.path(workdir, "plots/deseq2/PCA_vsd.pdf"), height = 5, width = 6)
+
+
+# ------------------------------
+# 5. Merge DE results with functional annotation
+# ------------------------------
+DE_annotated <- resOrdered.df %>%
+  left_join(emapper_best, by = c("transcript_id" = "query"))
+
+# Filter DEGs: p-adj < 0.05 & |log2FC| > 1
+DE_mod_df <- DE_annotated %>%
+  filter(padj < 0.05 & abs(log2FoldChange) > 1) %>%
+  mutate(direction = ifelse(log2FoldChange > 0, "Up", "Down"))
+
+# Summary of up/down DEGs
+DE_mod_df %>% dplyr::count(direction)
+
+write.csv(DE_mod_df, paste0(workdir, "results/DE_filtered_results_",Sys.Date(), ".csv"))
+
+# ------------------------------
+# 6. Visualization
+# ------------------------------
+
+## 6a. Histogram of log2 fold changes
+ggplot(resOrdered.df, aes(x = log2FoldChange)) +
+  geom_histogram(bins = 100, fill = "steelblue", color = "black") +
+  theme_minimal() +
+  labs(title = "Distribution of log2 Fold Changes", x = "log2 Fold Change", y = "Number of transcripts")
+
+## 6b. Volcano plot
+res_df_clean <- resOrdered.df %>% filter(!is.na(log2FoldChange) & !is.na(padj))
+res_df_clean <- res_df_clean %>%
+  mutate(sig = case_when(
+    padj < 0.05 & abs(log2FoldChange) > 2 ~ "Strong",
+    padj < 0.05 & abs(log2FoldChange) > 1 ~ "Moderate",
+    padj < 0.05 ~ "Weak",
+    TRUE ~ "Not Significant"
+  ))
+
+ggplot(res_df_clean, aes(x = log2FoldChange, y = -log10(padj), color = sig)) +
+  geom_point(alpha = 0.5, size = 1) +
+  scale_color_manual(values = c("Strong"="red","Moderate"="orange","Weak"="yellow","Not Significant"="gray")) +
+  theme_minimal() +
+  geom_vline(xintercept = c(-1,1), linetype="dashed", color="blue") +
+  geom_vline(xintercept = c(-2,2), linetype="dashed", color="red") +
+  geom_hline(yintercept=-log10(0.05), linetype="dashed", color="black") +
+  labs(title = "Volcano Plot", x = "log2 Fold Change", y = "-log10(padj)")
+
+## 6c. Heatmap of top 50 DEGs
+norm_counts <- counts(dds, normalized = TRUE)
+top_transcripts <- DE_mod_df %>% arrange(desc(abs(log2FoldChange))) %>% slice_head(n = 50) %>% pull(transcript_id)
+heatmat_log <- log2(norm_counts[top_transcripts, ] + 1)
+
+# Build column annotation
+metadata_AMF_rhizo <-  as.data.frame(metadata_AMF_rhizo)
+rownames(metadata_AMF_rhizo) <- metadata_AMF_rhizo$SampleID
+annotation_col_df <- metadata_AMF_rhizo[colnames(heatmat_log), c("Timepoint","Treatment")]
+
+# Build transcript labels
+transcript_annotation <- DE_mod_df %>% filter(transcript_id %in% rownames(heatmat_log)) %>%
+  mutate(label = paste0(COG_category," (",sig,")")) %>%
+  select(transcript_id,label) %>% tibble::column_to_rownames("transcript_id")
+rownames(heatmat_log) <- transcript_annotation[rownames(heatmat_log), "label"]
+
+pheatmap(
+  heatmat_log,
+  cluster_rows = TRUE,
+  cluster_cols = TRUE,
+  scale = "row",
+  color = colorRampPalette(c("blue","white","red"))(50),
+  main = "Top 50 DE Transcripts - Normalized Counts",
+  annotation_col = annotation_col_df,
+  filename = file.path(workdir, paste0("plots/deseq2/Top50_DE_Transcripts_", Sys.Date(), ".pdf")),
+  show_rownames = TRUE,
+  show_colnames = TRUE,
+  fontsize_row = 6,
+  fontsize_col = 8,
+  border_color = NA
+)
+
+## 6d. Functional category barplots (COG)
+cog_counts <- DE_mod_df %>%
+  filter(!is.na(COG_category)) %>%
+  group_by(COG_category, direction) %>%
+  summarise(n = n(), .groups = "drop")
+
+ggplot(cog_counts, aes(x = COG_category, y = n, fill = direction)) +
+  geom_bar(stat="identity", position="dodge") +
+  scale_fill_manual(values=c("Up"="red","Down"="blue")) +
+  theme_minimal() +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  labs(title="DE transcripts by COG category", x="COG category", y="Number of transcripts")
+
+# ------------------------------
+# 8. PERMANOVA on normalized counts
+# ------------------------------
+library(vegan)
+set.seed(123)
+
+vst_counts <- assay(vst(dds, blind = FALSE))
+comm_matrix_vst <- t(vst_counts)
+
+metadata <- metadata_AMF_rhizo[match(rownames(comm_matrix_vst), metadata_AMF_rhizo$SampleID), ]
+
+dist_mat_vst <- vegdist(comm_matrix_vst, method = "euclidean")  # Use Euclidean with VST
+
+adonis2(dist_mat_vst ~ Timepoint*Treatment*Site, data = metadata, permutations = 999, by = "terms")
+
+# ------------------------------
+# 7. Functional exploration (metatranscriptome-safe)
+# ------------------------------
+
+# A. COG category summaries (already partially done)
+cog_summary <- DE_mod_df %>%
+  filter(!is.na(COG_category)) %>%
+  group_by(COG_category, direction) %>%
+  summarise(n = n(), .groups = "drop")
+
+write.csv(cog_summary, file.path(workdir, "results/COG_summary.csv"), row.names = FALSE)
+
+
+# B. Broad functional category heatmap
+COG_mat <- DE_mod_df %>%
+  filter(!is.na(COG_category)) %>%
+  dplyr::count(COG_category, direction) %>%
+  tidyr::pivot_wider(names_from = direction, values_from = n, values_fill = 0)
+
+write.csv(COG_mat, file.path(workdir, "results/COG_heatmap_data.csv"), row.names = FALSE)
+
+
+# C. Transcript-level clustering using VST data
+vsd_mat <- assay(vsd)
+top_var <- head(order(rowVars(vsd_mat), decreasing = TRUE), 100)
+
+pheatmap(
+  vsd_mat[top_var, ],
+  scale = "row",
+  annotation_col = metadata_AMF_rhizo[, c("Timepoint", "Treatment", "Site")],
+  main = "Top 100 Most Variable Transcripts (VST)",
+  filename = file.path(workdir, "plots/deseq2/Top100_vsd_heatmap.pdf"),
+  border_color = NA
+)
+
+####### Top 20
+library(dplyr)
+library(tibble)
+
+# Convert DESeq2 results to a tibble
+resLFC.df <- as.data.frame(resLFC) %>% tibble::rownames_to_column("transcript_id")
+
+# Merge with annotation
+resLFC_annot <- resLFC.df %>%
+  left_join(emapper_best, by = c("transcript_id" = "query"))
+
+# Filter significant DEGs (adjusted p < 0.05)
+DEGs <- resLFC_annot %>% filter(padj < 0.05)
+
+# Top 20 Up-regulated
+top20_up <- DEGs %>%
+  filter(log2FoldChange > 0) %>%
+  arrange(desc(log2FoldChange)) %>%
+  slice_head(n = 20) %>%
+  select(transcript_id, log2FoldChange, padj, COG_category, Description, KEGG_ko)
+
+# Top 20 Down-regulated
+top20_down <- DEGs %>%
+  filter(log2FoldChange < 0) %>%
+  arrange(log2FoldChange) %>%  # most negative first
+  slice_head(n = 20) %>%
+  select(transcript_id, log2FoldChange, padj, COG_category, Description, KEGG_ko)
+
+# Quick summary: annotated vs unannotated
+top20_up %>% mutate(annotated = ifelse(is.na(COG_category) & is.na(Description), "No", "Yes")) %>%
+  count(annotated)
+
+top20_down %>% mutate(annotated = ifelse(is.na(COG_category) & is.na(Description), "No", "Yes")) %>%
+  count(annotated)
+
+# Export if desired
+write.csv(top20_up, file.path(workdir, "Top20_Up_DEGs.csv"), row.names = FALSE)
+write.csv(top20_down, file.path(workdir, "Top20_Down_DEGs.csv"), row.names = FALSE)
+
+```
+
+
+```{r}
+
+# Use vsd as is your variance-stabilized DESeq2 object
+vsd <- vst(dds, blind = TRUE)
+
+# PCA data for plotting
+pca_data <- plotPCA(vsd, intgroup = c("Timepoint", "Treatment", "Site"), returnData = TRUE)
+percentVar <- round(100 * attr(pca_data, "percentVar"))
+
+# Make SamplingPlot a factor with desired order
+pca_data$SamplingPlot <- factor(pca_data$Site, levels = c("1_4", "5_5", "7_8")) # adjust
+
+Fig4_C <- ggplot(pca_data, aes(PC1, PC2, color = SamplingPlot)) +
+  geom_point(size = 6, alpha = 1) +
+  #facet_wrap(~Timepoint) +
+  geom_convexhull(aes(fill = SamplingPlot), alpha = 0.1) +
+  scale_color_manual(values = plot_colors) +
+  xlab(paste0("PC1: ", percentVar[1], "% variance")) +
+  ylab(paste0("PC2: ", percentVar[2], "% variance")) +
+  theme_soil()
+
+Fig4_C
+
+
+ggsave(paste0(workdir, "plots/metaT/PCA_metaT_time_samplingplot_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig4_C, 
+       width = 7, height = 6, dpi = 600)
+
+
+
+```
+
+
+### Timepoints separate:
+
+```{r}
+
+dds_T1 <- dds[, dds$Timepoint == "T1"]
+dds_T2 <- dds[, dds$Timepoint == "T2"]
+dds_T3 <- dds[, dds$Timepoint == "T3"]
+
+vsd_T1 <- vst(dds_T1, blind = TRUE)
+vsd_T2 <- vst(dds_T2, blind = TRUE)
+vsd_T3 <- vst(dds_T3, blind = TRUE)
+
+pca_T1 <- plotPCA(vsd_T1,
+                  intgroup = c("Site", "Treatment"),
+                  returnData = TRUE)
+
+pca_T2 <- plotPCA(vsd_T2,
+                  intgroup = c("Site", "Treatment"),
+                  returnData = TRUE)
+
+pca_T3 <- plotPCA(vsd_T3,
+                  intgroup = c("Site", "Treatment"),
+                  returnData = TRUE)
+
+var_T1 <- round(100 * attr(pca_T1, "percentVar"))
+var_T2 <- round(100 * attr(pca_T2, "percentVar"))
+var_T3 <- round(100 * attr(pca_T3, "percentVar"))
+
+## Plots
+# Timepoint 1 = circle = 21
+# Timepoint 2 = triangle = 24
+# Timepoint 3 = square = 22
+
+  scale_shape_manual(
+    name = "Time_month",
+    breaks = c("March", "June", "July", "August"),
+    values = c(21,22,23,24)
+  ) 
+  
+  
+Fig4_C_T1 <- ggplot(pca_T1, aes(PC1, PC2, color = Site, fill = Site, shape = Timepoint)) +
+  geom_point(aes(fill = Site), size = 6, color = "black") +
+  geom_convexhull(aes(fill = Site, group = Site),alpha = 0.1 ) +
+  scale_color_manual(values = plot_colors) +
+  scale_fill_manual(values = plot_colors) +
+  xlab(paste0("PC1: ", var_T1[1], "%")) +
+  ylab(paste0("PC2: ", var_T1[2], "%")) +
+  theme_soil()+
+    scale_shape_manual(
+    name = "Timepoint",
+    breaks = c("T1", "T2", "T3"),
+    values = c(22,23,24)
+  ) +   theme(
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 12)
+  )
+
+Fig4_C_T2 <- ggplot(pca_T2, aes(PC1, PC2, color = Site, fill = Site, shape = Timepoint)) +
+  geom_point(aes(fill = Site), size = 6, color = "black") +
+  geom_convexhull(aes(fill = Site, group = Site),alpha = 0.1 ) +
+  scale_color_manual(values = plot_colors) +
+  scale_fill_manual(values = plot_colors) +
+  xlab(paste0("PC1: ", var_T2[1], "%")) +
+  ylab(paste0("PC2: ", var_T2[2], "%")) +
+  theme_soil()+
+    scale_shape_manual(
+    name = "Timepoint",
+    breaks = c("T1", "T2", "T3"),
+    values = c(22,23,24)
+  ) +   theme(
+    axis.text = element_text(size = 10), #12
+    axis.title = element_text(size = 12) #14
+  )
+
+Fig4_C_T3 <- ggplot(pca_T3, aes(PC1, PC2,color = Site, fill = Site, shape = Timepoint)) +
+  geom_point(aes(fill = Site), size = 6, color = "black") +
+  geom_convexhull(aes(fill = Site, group = Site),alpha = 0.1 ) +
+  scale_color_manual(values = plot_colors) +
+  scale_fill_manual(values = plot_colors) +
+  scale_color_manual(values = plot_colors) +
+  xlab(paste0("PC1: ", var_T3[1], "%")) +
+  ylab(paste0("PC2: ", var_T3[2], "%")) +
+  theme_soil()+
+    scale_shape_manual(
+    name = "Timepoint",
+    breaks = c("T1", "T2", "T3"),
+    values = c(22,23,24)
+  ) +   theme(
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 12)
+  )
+
+
+ggsave(paste0(workdir, "plots/metaT/Fig4_C_T1_PCA_metaT_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig4_C_T1, 
+       width = 5, height = 4, dpi = 600)
+
+
+ggsave(paste0(workdir, "plots/metaT/Fig4_C_T2_PCA_metaT_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig4_C_T2, 
+       width = 5, height = 4, dpi = 600)
+
+
+ggsave(paste0(workdir, "plots/metaT/Fig4_C_T3_PCA_metaT_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig4_C_T3, 
+       width = 5, height = 4, dpi = 600)
+
+######
+
+ggsave(paste0(workdir, "plots/metaT/Fig4_C_T1_PCA_metaT_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig4_C_T1, 
+       width = 2, height = 5, dpi = 600)
+
+
+ggsave(paste0(workdir, "plots/metaT/Fig4_C_T2_PCA_metaT_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig4_C_T2, 
+       width = 2, height =5, dpi = 600)
+
+
+ggsave(paste0(workdir, "plots/metaT/Fig4_C_T3_PCA_metaT_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig4_C_T3, 
+       width = 2, height = 5, dpi = 600)
+
+```
+
+Combined
+
+```{r}
+
+# Combine with patchwork
+Figure_4_C_combined <- (Fig4_C_T1 | Fig4_C_T2 | Fig4_C_T3) + plot_annotation(tag_levels = 'A')
+
+
+Figure_4_C_combined <- 
+  (Fig4_C_T1 | Fig4_C_T2 | Fig4_C_T3) &
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 14)
+  )
+
+
+Figure_4_C_combined
+
+
+ggsave(paste0(workdir, "plots/Manuscript_figures/Figure_4_C_combined_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Figure_4_C_combined, 
+      width = 6, height = 5, dpi = 600)
+
+
+```
+
+
+```{r}
+
+# Find the combined range first
+xlim <- range(c(Fig4_C_T1$data$PC1, Fig4_C_T2$data$PC1, Fig4_C_T3$data$PC1))
+ylim <- range(c(Fig4_C_T1$data$PC2, Fig4_C_T2$data$PC2, Fig4_C_T3$data$PC2))
+
+# Update each plot to use same limits
+Fig4_C_T1 <- Fig4_C_T1 + coord_fixed(xlim = xlim, ylim = ylim)
+Fig4_C_T2 <- Fig4_C_T2 + coord_fixed(xlim = xlim, ylim = ylim)
+Fig4_C_T3 <- Fig4_C_T3 + coord_fixed(xlim = xlim, ylim = ylim)
+
+
+Figure_4_C_combined <- 
+  (Fig4_C_T1 | Fig4_C_T2 | Fig4_C_T3) +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 14)
+  )
+
+ggsave(paste0(workdir, "plots/Manuscript_figures/Figure_4_C_combined_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Figure_4_C_combined, 
+      width = 6, height = 10, dpi = 600)
+
+
+```
+
+
+### Locations separate
+
+
+```{r}
+
+dds_1_4 <- dds[, dds$Site == "1_4"]
+dds_5_5 <- dds[, dds$Site == "5_5"]
+dds_7_8 <- dds[, dds$Site == "7_8"]
+
+vsd_1_4 <- vst(dds_1_4, blind = TRUE)
+vsd_5_5 <- vst(dds_5_5, blind = TRUE)
+vsd_7_8 <- vst(dds_7_8, blind = TRUE)
+
+
+pca_1_4 <- plotPCA(
+  vsd_1_4,
+  intgroup = c("Treatment", "Timepoint"),
+  returnData = TRUE
+)
+
+pca_5_5 <- plotPCA(
+  vsd_5_5,
+  intgroup = c("Treatment", "Timepoint"),
+  returnData = TRUE
+)
+
+pca_7_8 <- plotPCA(
+  vsd_7_8,
+  intgroup = c("Treatment", "Timepoint"),
+  returnData = TRUE
+)
+
+var_1_4 <- round(100 * attr(pca_1_4, "percentVar"))
+var_5_5 <- round(100 * attr(pca_5_5, "percentVar"))
+var_7_8 <- round(100 * attr(pca_7_8, "percentVar"))
+
+#########
+
+Fig4_C_14 <- ggplot(pca_1_4, aes(PC1, PC2, color = Treatment, shape = Timepoint)) +
+  geom_point(size = 6, alpha = 1) +
+  geom_convexhull(aes(fill = Treatment, group = Treatment),alpha = 0.1 ) +
+  scale_color_manual(values = amf_colors) +
+  xlab(paste0("PC1: ", var_1_4[1], "%")) +
+  ylab(paste0("PC2: ", var_1_4[2], "%")) +
+  theme_soil()
+
+Fig4_C_55 <- ggplot(pca_5_5, aes(PC1, PC2, color = Treatment, shape = Timepoint)) +
+  geom_point(size = 6, alpha = 1) +
+  geom_convexhull(aes(fill = Treatment, group = Treatment),alpha = 0.1 ) +
+  scale_color_manual(values = amf_colors) +
+  xlab(paste0("PC1: ", var_5_5[1], "%")) +
+  ylab(paste0("PC2: ", var_5_5[2], "%")) +
+  theme_soil()
+
+Fig4_C_78 <- ggplot(pca_7_8, aes(PC1, PC2, color = Treatment, shape = Timepoint)) +
+  geom_point(size = 6, alpha = 1) +
+  # coord_fixed() +
+  geom_convexhull(aes(fill = Treatment, group = Treatment),alpha = 0.1 ) +
+  scale_color_manual(values = amf_colors) +
+  scale_fill_manual(values = amf_colors) +
+  xlab(paste0("PC1: ", var_7_8[1], "%")) +
+  ylab(paste0("PC2: ", var_7_8[2], "%")) +
+  theme_soil()
+
+
+
+ggsave(paste0(workdir, "plots/metaT/Fig4_C_14_PCA_metaT_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig4_C_14, 
+       width = 5, height = 4, dpi = 600)
+
+
+ggsave(paste0(workdir, "plots/metaT/Fig4_C_55_PCA_metaT_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig4_C_55, 
+       width = 5, height = 4, dpi = 600)
+
+
+ggsave(paste0(workdir, "plots/metaT/Fig4_C_78_PCA_metaT_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig4_C_78, 
+       width = 5, height = 4, dpi = 600)
+
+```
+
+## Panel D
+
+
+```{r}
+
+Fig4_D <- ggplot(combined_data_DV_tr_rhizo, aes(x = Axis.1, y = Axis.2, color = Treat,  fill = Treat, shape = Timepoint)) +
+  geom_point(aes(fill = Treat), size = 6, color = "black") +
+  geom_convexhull(aes(color = Treat,fill = Treat, group = Treat), alpha = 0.1) +
+  scale_color_manual(values = amf_colors) +
+  scale_fill_manual(values = amf_colors) +
+  scale_shape_manual(
+    name = "Timepoint",
+    values = c(22,23,24)
+  ) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_DV_tr_rhizo$values$Eigenvalues[1] / sum(pcoa_DV_tr_rhizo$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_DV_tr_rhizo$values$Eigenvalues[2] / sum(pcoa_DV_tr_rhizo$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_soil()
+
+
+Fig4_D
+
+ggsave(paste0(workdir, "plots/pcoa/Fig4_D_pcoa_DV_rhizo_AMFtreatment_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig4_D,
+       width = 7, height = 6, dpi = 600)
+
+ggsave(paste0(workdir, "plots/pcoa/Fig4_D_pcoa_DV_rhizo_AMFtreatment_small_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig4_D,
+       width = 6, height = 5, dpi = 600)
+
+
+Fig4_D_legend <- ggplot(combined_data_DV_tr_rhizo, aes(x = Axis.1, y = Axis.2, color = Treat,  fill = Treat, shape = Treat)) +
+  geom_point(size = 6, alpha = 1) +
+  geom_convexhull(aes(fill = Treat), alpha = 0.1) +
+  scale_color_manual(values = amf_colors) +
+  scale_fill_manual(values = amf_colors) +
+  xlab(paste0("PCoA axis 1 (", round(pcoa_DV_tr_rhizo$values$Eigenvalues[1] / sum(pcoa_DV_tr_rhizo$values$Eigenvalues) * 100, 2), "%)")) +
+  ylab(paste0("PCoA axis 2 (", round(pcoa_DV_tr_rhizo$values$Eigenvalues[2] / sum(pcoa_DV_tr_rhizo$values$Eigenvalues) * 100, 2), "%)")) +
+  theme_bw()
+
+Fig4_D_legend
+
+ggsave(paste0(workdir, "plots/pcoa/Fig4_D_legend_pcoa_DV_rhizo_AMFtreatment_small_legend", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig4_D_legend,
+       width = 6, height = 5, dpi = 600)
+
+```
+
+
+## Panel E
+
+
+```{r}
+
+plant_data_dec23_PCO <- read_csv(paste0(workdir,"plant_data_dec23_plant_chem_only.csv"))
+
+
+# Filter out T0 and select chemistry columns
+plant_chem_filtered <- plant_data_dec23_PCO %>%
+  filter(Timepoint != "T0") %>%
+  select(`Plant N`:`Plant Na`)  # Replace with actual chemistry columns
+
+# Z-score
+plant_chem_scaled <- as.data.frame(scale(plant_chem_filtered))
+
+# PCA
+pca_plant_chem <- prcomp(plant_chem_scaled, scale. = TRUE)
+
+# PCA scores
+pca_scores_plant_chem <- as.data.frame(pca_plant_chem$x)
+
+# Variance explained
+pca_var_plant_chem<- pca_plant_chem$sdev^2
+pca_var_perc_plant_chem <- round(100 * pca_var_plant_chem / sum(pca_var_plant_chem), 2)
+
+# Add metadata for plotting
+metadata_plant_chem <- plant_data_dec23_PCO %>% filter(Timepoint != "T0")
+metadata_plant_chem$Timepoint <- recode(metadata_plant_chem$Timepoint,
+                             "T1" = "June",
+                             "T2" = "July",
+                             "T3" = "August")
+
+# Add metadata
+pca_scores_plant_chem <- bind_cols(
+  pca_scores_plant_chem,
+  metadata_plant_chem
+)
+
+
+pca_scores_plant_chem$Time_month <- factor(
+  pca_scores_plant_chem$Timepoint,
+  levels = c("June", "July", "August")
+)
+
+pca_scores_plant_chem$Site <- case_when(
+  pca_scores_plant_chem$`Plot ID` == "1-4 CMT" ~ "1_4",
+  pca_scores_plant_chem$`Plot ID` == "5-5 CMT" ~ "5_5",
+  pca_scores_plant_chem$`Plot ID` == "7-8 CMT" ~ "7_8",
+  TRUE ~ (pca_scores_plant_chem$`Plot ID`)
+)
+
+
+Fig4_E <- ggplot( pca_scores_plant_chem, aes(x = PC1,y = PC2, color = Site, shape = Time_month)) +
+  geom_point(aes(fill = Site), size = 6, color = "black") +
+  scale_color_manual(values = plot_colors) +
+  scale_fill_manual(values = plot_colors) +
+  scale_shape_manual(
+    name = "Timepoint",
+    values = c(22,23,24)
+  ) +
+  xlab(paste0("PC1 (", pca_var_perc_plant_chem[1], "%)")) +
+  ylab(paste0("PC2 (", pca_var_perc_plant_chem[2], "%)")) +
+  theme_soil()
+
+Fig4_E
+
+
+ggsave(paste0(workdir, "plots/plants/Fig4_E_PCA_plants_time_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig4_E,
+       width = 6, height = 5, dpi = 600)
+
+```
+
+
+```{r}
+# Permanova test
+
+library(vegan)
+
+# Prepare the distance matrix using z-scored plant chemistry
+plant_chem_dist <- vegdist(plant_chem_scaled, method = "euclidean")
+
+# Prepare metadata for PERMANOVA
+metadata_for_permanova <- plant_data_dec23_PCO %>%
+  filter(Timepoint != "T0") %>%
+  mutate(
+    Plot = case_when(
+      `Plot ID` == "1-4 CMT" ~ "1_4",
+      `Plot ID` == "5-5 CMT" ~ "5_5",
+      `Plot ID` == "7-8 CMT" ~ "7_8",
+      TRUE ~ `Plot ID`
+    )
+  )
+
+# Run PERMANOVA
+permanova_plant_chem <- adonis2(
+  plant_chem_dist ~ Timepoint + Treatment + Plot,
+  data = metadata_for_permanova,
+  permutations = 999,
+  method = "euclidean",  # Already calculated, but specifying for clarity
+  by = "terms"
+)
+
+# View results
+print(permanova_plant_chem)
+
+# Save results to a table
+write.csv(as.data.frame(permanova_plant_chem), 
+          paste0(workdir, "results/TableS10_PERMANOVA_plant_chemistry_", Sys.Date(), ".csv"))
+
+```
+
+## Panel F
+
+
+```{r}
+
+
+# ------------------------------
+# 5. Merge DE results with functional annotation
+# ------------------------------
+DE_annotated <- resOrdered.df %>%
+  left_join(emapper_best, by = c("transcript_id" = "query"))
+
+########################################### STATS
+# Total genes
+n_total <- nrow(DE_annotated)
+
+# Genes passing filter (DEGs)
+DE_mod_df <- DE_annotated %>%
+  filter(padj < 0.05 & abs(log2FoldChange) > 1) %>%
+  mutate(direction = ifelse(log2FoldChange > 0, "Up", "Down"))
+
+n_filtered <- nrow(DE_mod_df)
+
+# Genes filtered out
+n_removed <- n_total - n_filtered
+
+# Among filtered genes, how many are annotated? 
+# Assuming your annotation column is 'COG_category' or similar
+n_annotated <- DE_mod_df %>% 
+  filter(!is.na(COG_category) & COG_category != "-") %>% 
+  nrow()
+
+# Percent annotated
+pct_annotated <- n_annotated / n_filtered * 100
+
+# Print summary
+cat("Total genes:", n_total, "\n")
+cat("Genes passing filter (DEGs):", n_filtered, "\n")
+cat("Genes filtered out:", n_removed, "\n")
+cat("Annotated DEGs:", n_annotated, "(", round(pct_annotated, 2), "%)\n")
+
+
+#########################################
+
+# Summarize average log2FC by COG and direction
+
+DE_mod_df <- DE_mod_df %>%
+  mutate(COG_category = ifelse(COG_category == "-", NA, COG_category))
+
+# --- COG DESCRIPTION LOOKUP ---
+COG_desc_map <- c(
+  # INFORMATION STORAGE AND PROCESSING
+  "J" = "Translation, ribosomal structure, and biogenesis",
+  "A" = "RNA processing and modification",
+  "K" = "Transcription",
+  "L" = "Replication, recombination, and repair",
+  "B" = "Chromatin structure and dynamics",
+  
+  # CELLULAR PROCESSES AND SIGNALING
+  "D" = "Cell cycle control, cell division, chromosome partitioning",
+  "Y" = "Nuclear structure",
+  "V" = "Defense mechanisms",
+  "T" = "Signal transduction mechanisms",
+  "M" = "Cell wall/membrane/envelope biogenesis",
+  "N" = "Cell motility",
+  "Z" = "Cytoskeleton",
+  "W" = "Extracellular structures",
+  "U" = "Intracellular trafficking, secretion, and vesicular transport",
+  "O" = "Posttranslational modification, protein turnover, chaperones",
+  
+  # METABOLISM
+  "C" = "Energy production and conversion",
+  "G" = "Carbohydrate transport and metabolism",
+  "E" = "Amino acid transport and metabolism",
+  "F" = "Nucleotide transport and metabolism",
+  "H" = "Coenzyme transport and metabolism",
+  "I" = "Lipid transport and metabolism",
+  "P" = "Inorganic ion transport and metabolism",
+  "Q" = "Secondary metabolite biosynthesis, transport, and catabolism",
+  
+  # POORLY CHARACTERIZED
+  "R" = "General function prediction only",
+  "S" = "Function unknown",
+  
+  # Unannotated
+  "Unannotated" = "Unannotated"
+)
+
+# 1. Combine Unannotated + "S" (Function unknown)
+DE_mod_df2 <- DE_mod_df %>%
+  mutate(
+    COG = COG_category,
+    COG = ifelse(COG %in% c("-", NA, "S"), "Function unknown", COG)
+  )
+
+# 2. Count genes per COG × direction
+summary_COG <- DE_mod_df2 %>%
+  group_by(COG, direction) %>%
+  summarise(n_genes = n(), .groups = "drop") %>%
+  
+  # 3. Make downregulated negative
+  mutate(n_genes_signed = ifelse(direction == "Down",
+                                 -n_genes,
+                                 n_genes))
+
+# 4. Add descriptions
+summary_COG <- summary_COG %>%
+  mutate(
+    COG_desc = case_when(
+      COG == "Function unknown" ~ "Function unknown",
+      COG %in% names(COG_desc_map) ~ COG_desc_map[COG],
+      TRUE ~ "Mixed functional category"
+    )
+  )
+
+
+direction_colors <- c(
+  "Down"   = "#8C8C8C",
+  "Up" = "#2F3E5C"   # deep navy
+)
+
+summary_COG_mod <- summary_COG %>%  filter(COG_desc != 'Mixed functional category' & COG_desc != 'Function unknown')
+
+dim(summary_COG)
+dim(summary_COG_mod)
+
+Fig4_F <- ggplot(summary_COG_mod,
+       aes(x = reorder(COG_desc, n_genes_signed),
+           y = n_genes_signed,
+           fill = direction)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = direction_colors) +
+  coord_flip() +
+  xlab("COG Category") +
+  ylab("Number of Differentially Expressed Genes") +
+  theme_soil()
+
+Fig4_F <- ggplot(summary_COG_mod,
+       aes(x = reorder(n_genes_signed),
+           y = n_genes_signed,
+           fill = direction)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = direction_colors) +
+  coord_flip() +
+  xlab("COG Category") +
+  ylab("Number of Differentially Expressed Genes") +
+  theme_soil()
+
+Fig4_F
+
+ggsave(paste0(workdir, "plots/metaT/Fig4_F_DE_up_down_regulated_genes_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig4_F,
+       width = 7, height = 6, dpi = 600)
+
+ggsave(paste0(workdir, "plots/metaT/Fig4_F_DE_up_down_regulated_genes_2_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig4_F,
+       width = 12, height = 6, dpi = 600)
+
+########### Re ordered by the numebr of downregulated genes:
+
+cog_order <- summary_COG_mod %>%
+  filter(direction == "Down") %>%
+  arrange(n_genes_signed) %>%   # more down = more negative
+  pull(COG_desc)
+
+summary_COG_mod$COG_desc <- factor(
+  summary_COG_mod$COG_desc,
+  levels = cog_order
+)
+
+# Recode the names to shorter versions
+
+cog_short <- c(
+  "RNA processing and modification"                               = "A: RNA processing",
+  "Energy production and conversion"                              = "C: Energy",
+  "Cell cycle control, cell division, chromosome partitioning"    = "D: Cell cycle",
+  "Amino acid transport and metabolism"                           = "E: Amino acids",
+  "Nucleotide transport and metabolism"                           = "F: Nucleotides",
+  "Carbohydrate transport and metabolism"                         = "G: Carbohydrates",
+  "Coenzyme transport and metabolism"                             = "H: Coenzymes",
+  "Lipid transport and metabolism"                                = "I: Lipids",
+  "Translation, ribosomal structure, and biogenesis"              = "J: Translation",
+  "Transcription"                                                 = "K: Transcription",
+  "Replication, recombination, and repair"                        = "L: Replication and repair",
+  "Cell wall/membrane/envelope biogenesis"                        = "M: Cell envelope",
+  "Posttranslational modification, protein turnover, chaperones" = "O: Post-translation",
+  "Inorganic ion transport and metabolism"                        = "P: Inorganic ions",
+  "Secondary metabolite biosynthesis, transport, and catabolism" = "Q: Secondary metabolism",
+  "Signal transduction mechanisms"                                = "T: Signal transduction",
+  "Intracellular trafficking, secretion, and vesicular transport"= "U: Vesicular transport",
+  "Defense mechanisms"                                            = "V: Defense"
+)
+
+summary_COG_mod <- summary_COG_mod %>%
+  mutate(COG_short = recode(COG_desc, !!!cog_short))
+
+
+Fig4_F_2 <- ggplot(summary_COG_mod,
+       aes(x = COG_short,
+           y = n_genes_signed,
+           fill = direction)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = direction_colors) +
+  coord_flip() +
+  xlab("COG Category") +
+  ylab("Number of Differentially Expressed Genes") +
+  theme_soil()
+
+Fig4_F_2
+
+# Labels aligned
+Fig4_F_2 <- ggplot(summary_COG_mod,
+       aes(x = COG_short,
+           y = n_genes_signed,
+           fill = direction)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = direction_colors) +
+  coord_flip() +
+  xlab("COG Category") +
+  ylab("Number of Differentially Expressed Genes") +
+  theme_soil() +
+  theme(
+    axis.text.y = element_text(hjust = 0)  # ← THIS LINE
+  )
+
+Fig4_F_2
+
+
+ggsave(paste0(workdir, "plots/metaT/Fig4_F_2_DE_up_down_regulated_genes_small_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Fig4_F_2,
+       width = 8, height = 6, dpi = 600)
+
+```
+
+
+```{r}
+
+Fig4_F <- ggplot(summary_COG, aes(x = reorder(COG_desc, n_genes_signed), y = n_genes_signed, fill = direction)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = direction_colors) +
+  coord_flip() +
+  theme_soil(base_size = 14)+
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.text.y = element_text(size = 8)  # make the category labels smaller
+  ) +
+  ylab("Number of DE Genes") +
+  xlab("COG Category")
+
+
+```
+
+
+## Figure 4 combined
+
+```{r}
+# Combine with patchwork
+
+
+panel_E <- (Fig4_C_T1 | Fig4_C_T2 | Fig4_C_T3) +   # combine 3 plots horizontally
+  plot_layout(guides = "collect") & 
+  theme(plot.margin = margin(1,1,1,1))
+
+
+bottom_row_Fig4 <- (panel_E | Fig4_F_2) + 
+  plot_layout(widths = c(1,1,1,3), guides = "collect") &
+  theme(plot.margin = margin(2,2,2,2))
+
+
+# Bottom row: C and D side by side
+top_rows_Fig4 <-   (Fig4_A | Fig4_D) /
+  (Fig4_B | Fig4_E) &
+  theme(plot.margin = margin(2,2,2,2))
+
+# Combine top and bottom rows
+Figure_4_combined <- top_rows_Fig4 / bottom_row_Fig4 +
+  #plot_layout(heights = c(1,1)) +  # same height for top & bottom
+  plot_annotation(tag_levels = 'A')
+
+Figure_4_combined
+
+ggsave(paste0(workdir, "plots/Manuscript_figures/Figure_4_combined_", Sys.Date(), ".pdf"), 
+       device = "pdf",
+       plot = Figure_4_combined, 
+       width = 12, height = 16, dpi = 600)
+
+
+
+```
+
